@@ -4,6 +4,15 @@
 
 ## 第一次来？从这里开始 ( Ꙭ)
 
+> [!IMPORTANT]
+> **先看设备：当前版本只支持 Android + Termux。**
+>
+> - **Android**：✓ 当前主要支持平台，可以继续下面的安装步骤。
+> - **iPhone / iPad (iOS / iPadOS)**：✗ 当前不能按本教程在设备本机安装；iOS 没有 Termux，也不具备本项目目前依赖的 Termux 运行环境。
+> - **HarmonyOS NEXT / 原生鸿蒙**：✗ 当前不支持本机安装。仍兼容 Android APK 的旧版 HarmonyOS 设备可能可以运行 Termux，但尚未作为正式支持平台测试。
+>
+> 如果你用的是 iPhone、iPad 或原生鸿蒙，**不用继续复制下面的 Termux 安装命令**。未来可以考虑远程节点或独立的 iOS / HarmonyOS backend；当前仓库先把 Android 版本做好。
+
 你不需要先学 Linux、Python、端口或 MCP。第一次使用只做四件事：
 
 1. 在 Android 上安装 **Termux**（推荐 [F-Droid](https://f-droid.org/packages/com.termux/)；也可以用 [Termux 官方 GitHub Releases](https://github.com/termux/termux-app/releases)）。
