@@ -466,3 +466,32 @@ def test_status_skips_recursive_initialize_inside_tool_context(isolated_state, m
     out = capsys.readouterr().out
     assert rc == 0
     assert "MCP initialize: SKIPPED" in out
+
+
+def test_restart_inside_tool_context_is_deferred(monkeypatch, capsys):
+    monkeypatch.setenv("TERMUX_MCP_TOOL_CONTEXT", "1")
+    monkeypatch.setattr(process, "is_running", lambda: True)
+    monkeypatch.setattr(process, "read_pid", lambda: 7777)
+    calls = {}
+    monkeypatch.setattr(process, "schedule_server_restart", lambda pid: calls.setdefault("pid", pid) or 8888)
+    monkeypatch.setattr(process, "stop_server", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must defer")))
+    rc = cli.cmd_restart(cli._parse_args(["restart"]))
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert calls["pid"] == 7777
+    assert "restart scheduled" in out.lower()
+
+
+def test_start_server_drops_tool_context_from_child_env(isolated_state, monkeypatch):
+    captured = {}
+    class DummyProc:
+        pid = 43210
+    def fake_popen(*args, **kwargs):
+        captured.update(kwargs.get("env", {}))
+        return DummyProc()
+    monkeypatch.setenv("TERMUX_MCP_TOOL_CONTEXT", "1")
+    monkeypatch.setattr(process, "is_running", lambda: False)
+    monkeypatch.setattr(process.subprocess, "Popen", fake_popen)
+    pid = process.start_server()
+    assert pid == 43210
+    assert "TERMUX_MCP_TOOL_CONTEXT" not in captured

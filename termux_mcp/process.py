@@ -224,6 +224,9 @@ def start_server(env: Optional[dict] = None) -> int:
     log_f = open(LOG_FILE, "ab")
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     child_env = dict(env or os.environ.copy())
+    # Tool subprocesses carry this marker so recursive health checks can be
+    # skipped. Never leak it into the long-lived server process itself.
+    child_env.pop("TERMUX_MCP_TOOL_CONTEXT", None)
     proc = subprocess.Popen(
         [sys.executable, "-m", "termux_mcp"],
         cwd=repo_root,
@@ -235,6 +238,47 @@ def start_server(env: Optional[dict] = None) -> int:
     )
     write_pid(proc.pid)
     return proc.pid
+
+
+def schedule_server_restart(old_pid: int, delay: float = 0.75) -> int:
+    """Schedule a detached server-only restart and return the worker PID.
+
+    Used when `termux-mcp restart` is invoked through MCP itself: a
+    synchronous self-kill would tear down the request before the replacement
+    server can be launched.
+    """
+    if old_pid <= 0:
+        raise ValueError("old_pid must be positive")
+    os.makedirs(STATE_DIR, exist_ok=True)
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    worker_env = os.environ.copy()
+    worker_env.pop("TERMUX_MCP_TOOL_CONTEXT", None)
+    worker_env["TERMUX_MCP_RESTART_PID"] = str(old_pid)
+    worker_env["TERMUX_MCP_RESTART_DELAY"] = str(max(0.1, delay))
+    code = (
+        "import os,time\n"
+        "from termux_mcp import process\n"
+        "from termux_mcp.config import PORT,MCP_PORT,AUTH_TOKEN,MCP_ENABLED\n"
+        "old=int(os.environ['TERMUX_MCP_RESTART_PID'])\n"
+        "time.sleep(float(os.environ.get('TERMUX_MCP_RESTART_DELAY','0.75')))\n"
+        "if process._pid_alive(old): process.kill_pid(old, timeout=10.0)\n"
+        "if process.read_pid()==old: process.clear_pid()\n"
+        "process.start_server()\n"
+        "rest=process.wait_http(PORT, timeout=15.0)\n"
+        "mcp=(process.wait_mcp_initialize(MCP_PORT, AUTH_TOKEN, timeout=15.0)[0] if MCP_ENABLED else True)\n"
+        "raise SystemExit(0 if (rest and mcp) else 2)\n"
+    )
+    log_f = open(LOG_FILE, "ab")
+    worker = subprocess.Popen(
+        [sys.executable, "-c", code],
+        cwd=repo_root,
+        env=worker_env,
+        stdout=log_f,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    return worker.pid
 
 
 def stop_server(timeout: float = 10.0) -> bool:

@@ -253,6 +253,14 @@ def _restart_tunnel_action(args: argparse.Namespace) -> str:
 def cmd_restart(args: argparse.Namespace) -> int:
     action = _restart_tunnel_action(args)
 
+    # Self-restart through MCP must be deferred so this request can finish
+    # before the serving process is terminated.
+    if os.getenv("TERMUX_MCP_TOOL_CONTEXT") == "1" and action == "keep" and process.is_running():
+        old_pid = process.read_pid()
+        worker_pid = process.schedule_server_restart(old_pid)
+        print(f"Server restart scheduled (worker pid {worker_pid}); tunnel kept.")
+        return 0
+
     # 1. Stop the server only — never touch the tunnel unless asked.
     if process.is_running():
         pid = process.read_pid()
