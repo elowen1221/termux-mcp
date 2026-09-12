@@ -1,12 +1,11 @@
-import base64
-import hmac
 import json
 import logging
 import os
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-from .config import AUTH_TOKEN, HOME, REQUIRE_AUTH
+from .auth import get_auth_provider
+from .config import COMMAND_TIMEOUT, HOME
 from .handlers.ai_power import (
     handle_smart_install, handle_permission_fix, handle_profile,
     handle_error_explain, handle_ssh_wizard, handle_service_guard,
@@ -29,26 +28,23 @@ from .handlers.features import (
 from .handlers.history import (
     handle_history_list, handle_history_save, handle_history_clear,
 )
-from .utils import shell_quote, shell_quote_num, is_safe_path, json_response, is_install_command, encode_base64
+from .utils import shell_quote, shell_quote_num, is_safe_path, json_response
+from . import operations
 from .tools_schema import OPENAI_TOOLS, build_catalog
 from . import websocket as ws
-from .safety import snapshot_before_write, snapshot_targets_from_command, trash_path
-from .security import get_risk_assessment
+from .safety import trash_path
 from .shell import (
+    _finalize_chunks,
+    _send_chunk,
     cancel_active,
     execute_streaming,
     get_active_pid,
     get_current_dir,
-    set_current_dir,
 )
 
 logger = logging.getLogger(__name__)
 
 MAX_BODY_SIZE = 5 * 1024 * 1024  # 5 MB
-
-
-def _constant_time_compare(a: str, b: str) -> bool:
-    return hmac.compare_digest(a.encode(), b.encode())
 
 
 class MCPHandler(BaseHTTPRequestHandler):
@@ -62,13 +58,7 @@ class MCPHandler(BaseHTTPRequestHandler):
 
     def _authenticate(self) -> bool:
         """Check Bearer token if auth is required. Returns True if allowed."""
-        if not REQUIRE_AUTH:
-            return True
-        auth_header = self.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            return _constant_time_compare(token, AUTH_TOKEN)
-        return False
+        return get_auth_provider().authenticate(dict(self.headers))
 
     def _send_unauthorized(self) -> None:
         body = json.dumps({"error": "Unauthorized"}).encode("utf-8")
@@ -93,6 +83,18 @@ class MCPHandler(BaseHTTPRequestHandler):
             self._log(f"JSON read error: {e}")
             return {}
 
+    def _send_text(self, text: str, status: int = 200) -> None:
+        body = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _stream_chunk(self, line: str, is_stderr: bool = False) -> None:
+        """Stream callback used by operations.execute_command."""
+        _send_chunk(self, line)
+
     # ── GET ─────────────────────────────────────────────────────────────────
 
     def do_GET(self) -> None:
@@ -104,6 +106,11 @@ class MCPHandler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "cwd": get_current_dir(),
             })
+            return
+
+        # Protect all informational endpoints except /ping.
+        if not self._authenticate():
+            self._send_unauthorized()
             return
 
         if path == "/env":
@@ -491,63 +498,79 @@ class MCPHandler(BaseHTTPRequestHandler):
             json_response(self,400, {"error": "Missing 'cmd'"})
             return
 
-        # Security check
-        risk = get_risk_assessment(cmd)
-        if risk["blocked"]:
+        # Security check (shared with the MCP run_command tool).
+        assessment = operations.assess_command(cmd, data.get("confirmed", False))
+        if assessment["blocked"]:
             json_response(self,403, {
-                "error": risk["message"],
-                "risk_level": risk["risk_level"],
+                "error": assessment["message"],
+                "risk_level": assessment["risk_level"],
                 "blocked": True,
             })
             return
 
-        if risk["requires_confirmation"]:
+        if assessment["confirmation_required"]:
             # Return the risk assessment — client must re-send with confirmed: true
-            if not data.get("confirmed"):
-                json_response(self,200, {
-                    "status": "confirmation_required",
-                    "command": cmd,
-                    "risk_level": risk["risk_level"],
-                    "message": risk["message"],
-                    "requires_confirmation": True,
-                })
-                return
+            json_response(self,200, {
+                "status": "confirmation_required",
+                "command": cmd,
+                "risk_level": assessment["risk_level"],
+                "message": assessment["message"],
+                "requires_confirmation": True,
+            })
+            return
 
-        # File safety: shell commands can overwrite real files (redirects,
-        # sed -i, tee, cp/mv, truncate, dd of=...). Snapshot candidates
-        # before running; echo the snapshot paths so the AI can diff/restore.
-        snaps = snapshot_targets_from_command(cmd)
-        if snaps and not cmd.strip().startswith("cd"):
-            hint = "; ".join(f"snapshot: {s}" for s in snaps)
-            cmd = f"echo {shell_quote(hint)}; {cmd}"
-        elif snaps:
-            logger.info("Snapshots taken (cd command, not echoed): %s", snaps)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
 
-        self._log(f"Executing: {cmd}")
-        execute_streaming(self, cmd)
+        # Shared execution: snapshots files the command may overwrite and
+        # streams output lines through the callback.
+        result = operations.execute_command(cmd, stream=self._stream_chunk)
+
+        if result.snapshots and not cmd.strip().startswith("cd"):
+            hint = "; ".join(f"snapshot: {s}" for s in result.snapshots)
+            _send_chunk(self, hint + "\n")
+
+        if result.timed_out:
+            _send_chunk(self, f"\n⏱️ Timed out after {COMMAND_TIMEOUT}s\n")
+        elif result.cancelled:
+            _send_chunk(self, "\nCancelled\n")
+        elif result.exit_code and result.exit_code != 0:
+            _send_chunk(self, f"\n❌ Exit code: {result.exit_code}\n")
+        else:
+            _send_chunk(self, "\n✅ Done\n")
+        _finalize_chunks(self)
 
     def _handle_ls(self, data: dict) -> None:
         path = (data.get("path") or ".").strip()
-        if not is_safe_path(path):
-            json_response(self,403, {"error": "Path not allowed"})
+        result = operations.list_files(path)
+        if "error" in result:
+            status = 403 if result["error"] == "Path not allowed" else 400
+            json_response(self,status, {"error": result["error"]})
             return
-        # Always use -la to show dotfiles — Termux home is mostly dotfiles
-        flags = "-la"
-        if data.get("bare"):
-            flags = "-1"
-        elif data.get("no_dotfiles"):
-            flags = "-l"
-        execute_streaming(self, f'ls {flags} {shell_quote(path)} 2>/dev/null || echo Cannot access: {shell_quote(path)}')
+        entries = result["entries"]
+        if data.get("no_dotfiles"):
+            entries = [e for e in entries if not e.startswith(".")]
+        self._send_text("\n".join(entries) + ("\n" if entries else ""))
 
     def _handle_read(self, data: dict) -> None:
         path = (data.get("path") or "").strip()
         if not path:
             json_response(self,400, {"error": "Missing 'path'"})
             return
-        if not is_safe_path(path):
-            json_response(self,403, {"error": "Path not allowed"})
+        try:
+            offset = int(data.get("offset", 0) or 0)
+            limit = int(data.get("limit", 500) or 500)
+        except (TypeError, ValueError):
+            json_response(self,400, {"error": "offset/limit must be integers"})
             return
-        execute_streaming(self, f'head -n 500 {shell_quote(path)} 2>/dev/null || echo Cannot read: {shell_quote(path)}')
+        result = operations.read_file(path, offset=offset, limit=limit)
+        if "error" in result:
+            status = 403 if result["error"] == "Path not allowed" else 400
+            json_response(self,status, {"error": result["error"]})
+            return
+        self._send_text(result["content"])
 
     def _handle_write(self, data: dict) -> None:
         path = (data.get("path") or "").strip()
@@ -555,31 +578,26 @@ class MCPHandler(BaseHTTPRequestHandler):
         if not path:
             json_response(self,400, {"error": "Missing 'path'"})
             return
-        if not is_safe_path(path):
-            json_response(self,403, {"error": "Path not allowed"})
+        # Shared operation: snapshots the previous version before overwrite.
+        result = operations.write_file(path, content)
+        if "error" in result:
+            status = 403 if result["error"] == "Path not allowed" else 400
+            json_response(self,status, {"error": result["error"]})
             return
-        # Safety: keep the previous version before overwriting. The snapshot
-        # path is echoed to the client so the AI can diff/restore on request.
-        snap = snapshot_before_write(path)
-        snap_hint = f' snapshot: {shell_quote(snap)}' if snap else ''
-        # Write via base64 to avoid shell escaping issues entirely
-        encoded = base64.b64encode(content.encode()).decode()
-        execute_streaming(
-            self,
-            f'mkdir -p "$(dirname {shell_quote(path)})" 2>/dev/null; '
-            f'echo {shell_quote(encoded)} | base64 -d > {shell_quote(path)} && '
-            f'echo Written: {shell_quote(path)}{snap_hint}'
-        )
+        snap_hint = f' snapshot: {result["snapshot"]}' if result.get("snapshot") else ''
+        self._send_text(f"Written: {result['path']}{snap_hint}\n")
 
     def _handle_mkdir(self, data: dict) -> None:
         path = (data.get("path") or "").strip()
         if not path:
             json_response(self,400, {"error": "Missing 'path'"})
             return
-        if not is_safe_path(path):
-            json_response(self,403, {"error": "Path not allowed"})
+        result = operations.make_directory(path)
+        if "error" in result:
+            status = 403 if result["error"] == "Path not allowed" else 400
+            json_response(self,status, {"error": result["error"]})
             return
-        execute_streaming(self, f'mkdir -p {shell_quote(path)} && echo Created: {shell_quote(path)}')
+        self._send_text(f"Created: {result['path']}\n")
 
     def _handle_delete(self, data: dict) -> None:
         path = (data.get("path") or "").strip()
@@ -650,12 +668,12 @@ class MCPHandler(BaseHTTPRequestHandler):
             return
         priority = data.get("priority", "default").strip()
         nid = data.get("id", "").strip()
-        flags = ""
-        if nid:
-            flags += f" --id {nid}"
-        if data.get("ongoing"):
-            flags += " --ongoing"
-        execute_streaming(self, f"termux-notification {flags} --priority {priority} --title {shell_quote(title)} --content {shell_quote(content)} 2>/dev/null && echo 'Notification sent' || echo 'Notification failed'")
+        ongoing = bool(data.get("ongoing"))
+        result = operations.send_notification(title, content, priority, nid, ongoing)
+        if "error" in result:
+            json_response(self,400, {"error": result["error"]})
+            return
+        self._send_text(result["output"] + "\n")
 
     def _handle_notify_remove(self, data: dict) -> None:
         nid = str(data.get("id", "")).strip()
@@ -704,7 +722,8 @@ class MCPHandler(BaseHTTPRequestHandler):
         execute_streaming(self, f"termux-download{flags} {shell_quote(url)} 2>/dev/null && echo 'Download started' || echo 'Download failed'")
 
     def _handle_battery(self, data: dict) -> None:
-        execute_streaming(self, "termux-battery-status 2>/dev/null || echo '{}'")
+        result = operations.get_battery()
+        self._send_text(result["raw"] + "\n")
 
     def _handle_wifi_info(self, data: dict) -> None:
         execute_streaming(self, "termux-wifi-connectioninfo 2>/dev/null || echo '{}'")
@@ -714,7 +733,8 @@ class MCPHandler(BaseHTTPRequestHandler):
 
     def _handle_location(self, data: dict) -> None:
         provider = data.get("provider", "gps").strip()
-        execute_streaming(self, f"termux-location -p {shell_quote(provider)} -r last 2>/dev/null || echo '{{}}'")
+        result = operations.get_location(provider)
+        self._send_text(result["raw"] + "\n")
 
     def _handle_contacts(self, data: dict) -> None:
         execute_streaming(self, "termux-contact-list 2>/dev/null || echo '[]'")

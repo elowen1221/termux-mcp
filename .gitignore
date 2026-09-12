@@ -3,3 +3,21 @@ __pycache__/
 dist/
 *.egg-info/
 *.whl
+.pytest_cache/
+.venv/
+build/
+
+# Secrets / credentials — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+# Tunnel binaries / artifacts (root-level only — do NOT match source files
+# like termux_mcp/tunnel.py)
+/tunnel*
+/cloudflared*
+/ngrok*
+config.env
+*.local

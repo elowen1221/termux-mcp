@@ -3,7 +3,7 @@ import sys
 from http.server import HTTPServer
 from socketserver import ThreadingMixIn
 
-from .config import AUTH_TOKEN, HOST, PORT, REQUIRE_AUTH
+from .config import AUTH_TOKEN, HOST, MCP_ENABLED, PORT, REQUIRE_AUTH
 from .handler import MCPHandler
 from .network import kill_port
 from .shell import get_current_dir
@@ -49,6 +49,14 @@ def run() -> None:
     if REQUIRE_AUTH:
         logger.info("Authentication: enabled")
     logger.info("Press Ctrl+C to stop.\n")
+
+    if MCP_ENABLED:
+        try:
+            from .mcp_server import start_mcp_server
+
+            start_mcp_server()
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("MCP layer failed to start: %s", e)
 
     try:
         server.serve_forever()

@@ -60,7 +60,7 @@ def handle_diagnose(handler: "BaseHTTPRequestHandler", data: dict) -> None:
 def handle_pkg_smart(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     intent = data.get("intent", "").strip().lower()
     if not intent:
-        _json_response(handler, 400, {"error": "Missing 'intent'. Describe what you want to do."})
+        json_response(handler, 400, {"error": "Missing 'intent'. Describe what you want to do."})
         return
 
     do_install = data.get("install", False)
@@ -152,7 +152,7 @@ def handle_pkg_smart(handler: "BaseHTTPRequestHandler", data: dict) -> None:
 def handle_explain(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     cmd = data.get("cmd", "").strip()
     if not cmd:
-        _json_response(handler, 400, {"error": "Missing 'cmd' to explain"})
+        json_response(handler, 400, {"error": "Missing 'cmd' to explain"})
         return
 
     qcmd = shell_quote(cmd)
@@ -280,7 +280,7 @@ def handle_dev_env(handler: "BaseHTTPRequestHandler", data: dict) -> None:
 def handle_review(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     file_path = data.get("file", "").strip()
     if not file_path:
-        _json_response(handler, 400, {"error": "Missing 'file' path"})
+        json_response(handler, 400, {"error": "Missing 'file' path"})
         return
 
     safe_path = shell_quote(file_path)
@@ -329,7 +329,7 @@ def handle_review(handler: "BaseHTTPRequestHandler", data: dict) -> None:
 def handle_log_analyze(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     file_path = data.get("file", "").strip()
     if not file_path:
-        _json_response(handler, 400, {"error": "Missing 'file' path"})
+        json_response(handler, 400, {"error": "Missing 'file' path"})
         return
 
     safe_path = shell_quote(file_path)
@@ -351,7 +351,7 @@ def handle_script_gen(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     output = data.get("output", "").strip()
 
     if not description:
-        _json_response(handler, 400, {"error": "Missing 'description' of what the script should do"})
+        json_response(handler, 400, {"error": "Missing 'description' of what the script should do"})
         return
 
     safe_out = shell_quote(output) if output else ""
@@ -468,7 +468,7 @@ def handle_regex(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     test_str = data.get("test", "").strip()
 
     if not pattern:
-        _json_response(handler, 400, {"error": "Missing 'pattern'"})
+        json_response(handler, 400, {"error": "Missing 'pattern'"})
         return
 
     safe_pattern = shell_quote(pattern)
@@ -493,7 +493,7 @@ def handle_db_design(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     db_path = data.get("output", get_current_dir() + "/database.sqlite").strip()
 
     if not schema:
-        _json_response(handler, 400, {"error": "Missing 'schema' — describe your tables"})
+        json_response(handler, 400, {"error": "Missing 'schema' — describe your tables"})
         return
 
     safe_db = shell_quote(db_path)
@@ -571,7 +571,7 @@ def handle_restore(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     target = data.get("target", "home").strip()
 
     if not backup_file:
-        _json_response(handler, 400, {"error": "Missing 'file' — path to backup archive"})
+        json_response(handler, 400, {"error": "Missing 'file' — path to backup archive"})
         return
 
     safe_file = shell_quote(backup_file)

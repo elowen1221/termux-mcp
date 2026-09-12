@@ -17,7 +17,7 @@ def handle_smart_install(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     dry_run = data.get("dry_run", False)
 
     if not packages:
-        _json_response(handler, 400, {"error": "Missing 'packages' — space-separated list"})
+        json_response(handler, 400, {"error": "Missing 'packages' — space-separated list"})
         return
 
     checks = [
@@ -327,7 +327,7 @@ def handle_service_guard(handler: "BaseHTTPRequestHandler", data: dict) -> None:
         ]
     elif action == "start":
         if not service_name or not service_cmd:
-            _json_response(handler, 400, {"error": "Missing 'name' and 'cmd' for service"})
+            json_response(handler, 400, {"error": "Missing 'name' and 'cmd' for service"})
             return
         checks = [
             f'echo "Starting service: {service_name}"',
@@ -341,7 +341,7 @@ def handle_service_guard(handler: "BaseHTTPRequestHandler", data: dict) -> None:
         ]
     elif action == "stop":
         if not service_name:
-            _json_response(handler, 400, {"error": "Missing 'name' of service to stop"})
+            json_response(handler, 400, {"error": "Missing 'name' of service to stop"})
             return
         checks = [
             f'echo "Stopping: {service_name}"',
@@ -449,7 +449,7 @@ def handle_quick_cmd(handler: "BaseHTTPRequestHandler", data: dict) -> None:
         ]
     elif action == "add":
         if not alias_name or not alias_cmd:
-            _json_response(handler, 400, {"error": "Missing 'name' and 'cmd' for alias"})
+            json_response(handler, 400, {"error": "Missing 'name' and 'cmd' for alias"})
             return
         safe_alias = shell_quote(alias_name)
         safe_cmd = shell_quote(alias_cmd)
@@ -461,7 +461,7 @@ def handle_quick_cmd(handler: "BaseHTTPRequestHandler", data: dict) -> None:
         ]
     elif action == "remove":
         if not alias_name:
-            _json_response(handler, 400, {"error": "Missing 'name' of alias to remove"})
+            json_response(handler, 400, {"error": "Missing 'name' of alias to remove"})
             return
         checks = [
             f'echo "Removing alias: {alias_name}"',
@@ -560,7 +560,7 @@ def handle_migrate(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     elif action == "restore":
         archive = data.get("file", "").strip()
         if not archive:
-            _json_response(handler, 400, {"error": "Missing 'file' — path to migration archive"})
+            json_response(handler, 400, {"error": "Missing 'file' — path to migration archive"})
             return
         safe_archive = shell_quote(archive)
         checks = [
@@ -586,7 +586,7 @@ def handle_migrate(handler: "BaseHTTPRequestHandler", data: dict) -> None:
     elif action == "preview":
         archive = data.get("file", "").strip()
         if not archive:
-            _json_response(handler, 400, {"error": "Missing 'file' to preview"})
+            json_response(handler, 400, {"error": "Missing 'file' to preview"})
             return
         safe_archive = shell_quote(archive)
         checks = [

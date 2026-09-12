@@ -8,7 +8,6 @@ import struct
 import subprocess
 import threading
 import time
-from urllib.parse import parse_qs, urlparse
 
 from .config import AUTH_TOKEN, AUTO_INPUT_INTERVAL, COMMAND_TIMEOUT, HOME, MAX_OUTPUT_BYTES, REQUIRE_AUTH
 from .utils import is_install_command, shell_quote, is_safe_path, encode_base64
@@ -53,22 +52,15 @@ TRUNCATION_MARKER = f"\n[Output truncated: max {MAX_OUTPUT_BYTES} bytes — full
 
 
 def _ws_authenticated(headers: str, path: str = "") -> bool:
-    """Check Bearer token (header or ?token= query) when auth is required."""
+    """Check the Bearer token (Authorization header only) when auth is
+    required. Tokens in URL query parameters are not supported."""
     if not REQUIRE_AUTH:
         return True
-    # Header: Authorization: Bearer <token>
     for line in headers.split("\r\n"):
         if line.lower().startswith("authorization:"):
             parts = line.split(":", 1)[1].strip().split(None, 1)
             if len(parts) == 2 and parts[0].lower() == "bearer":
                 return hmac.compare_digest(parts[1], AUTH_TOKEN)
-    # Query: ?token=<token> (needed by clients that can't set headers on WS)
-    try:
-        q = parse_qs(urlparse(path).query)
-        if q.get("token") and hmac.compare_digest(q["token"][0], AUTH_TOKEN):
-            return True
-    except Exception:
-        pass
     return False
 
 
@@ -564,10 +556,10 @@ def _ws_execute_tool(sock, tool: str, params: dict, conn: dict, req_id) -> None:
     # Monitor & Manage
     elif tool == "system_info":
         cmd = ('cpu=$(top -bn1 2>/dev/null | grep -oP "[0-9.]+%" | head -1 | tr -d "%" || echo 0);'
-               'ram_total=$(free -m 2>/dev/null | awk "/Mem:/{print \$2}" || echo 0);'
-               'ram_used=$(free -m 2>/dev/null | awk "/Mem:/{print \$3}" || echo 0);'
-               'disk_total=$(df -m /data 2>/dev/null | awk "END{print \$2}" || echo 0);'
-               'disk_used=$(df -m /data 2>/dev/null | awk "END{print \$3}" || echo 0);'
+               'ram_total=$(free -m 2>/dev/null | awk "/Mem:/{print \\$2}" || echo 0);'
+               'ram_used=$(free -m 2>/dev/null | awk "/Mem:/{print \\$3}" || echo 0);'
+               'disk_total=$(df -m /data 2>/dev/null | awk "END{print \\$2}" || echo 0);'
+               'disk_used=$(df -m /data 2>/dev/null | awk "END{print \\$3}" || echo 0);'
                'echo "{\\"cpu_percent\\":\\"$cpu\\",\\"ram_mb_total\\":$ram_total,\\"ram_mb_used\\":$ram_used,\\"disk_mb_total\\":$disk_total,\\"disk_mb_used\\":$disk_used}"')
 
     elif tool == "process_list":

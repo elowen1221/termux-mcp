@@ -37,6 +37,12 @@ def get_active_pid() -> Optional[int]:
         return tld.active_pid
 
 
+def set_active_pid(pid: Optional[int]) -> None:
+    tld = _get_tld()
+    with tld.pid_lock:
+        tld.active_pid = pid
+
+
 def cancel_active() -> bool:
     tld = _get_tld()
     with tld.pid_lock:
@@ -51,6 +57,9 @@ def cancel_active() -> bool:
 
 
 def _inject_noninteractive(cmd: str) -> str:
+    # `export` is a sh builtin — invalid on Windows cmd.exe.
+    if os.name == "nt":
+        return cmd
     return f"export DEBIAN_FRONTEND=noninteractive; {cmd}"
 
 
@@ -66,6 +75,12 @@ def preprocess(cmd: str) -> str:
     cmd = _inject_auto_yes(cmd)
     cmd = _inject_noninteractive(cmd)
     return cmd
+
+
+def shell_prefix() -> str:
+    """POSIX-only shell setup prefix (`export` is a sh builtin, invalid on
+    Windows cmd.exe)."""
+    return "export PAGER=cat; " if os.name != "nt" else ""
 
 
 def handle_cd(raw_cmd: str) -> tuple:
@@ -192,7 +207,7 @@ def _run_process(handler: "BaseHTTPRequestHandler", raw_cmd: str) -> None:
         if hasattr(os, "setsid"):
             popen_kwargs["preexec_fn"] = os.setsid
 
-        process = subprocess.Popen(f"export PAGER=cat; {cmd}", **popen_kwargs)
+        process = subprocess.Popen(f"{shell_prefix()}{cmd}", **popen_kwargs)
 
         with tld.pid_lock:
             tld.active_pid = process.pid
