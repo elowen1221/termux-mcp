@@ -11,7 +11,7 @@ from . import config
 MODES = {
     "read-only": "查看信息和文件，不允许修改或执行命令",
     "standard": "允许日常操作，高风险命令仍需确认",
-    "full": "允许完整 Termux 控制，不重复确认命令风险",
+    "full": "受信任 Agent 模式：允许完整 Termux 控制，并跳过命令风险确认",
 }
 
 _READ_ONLY_CAPABILITIES = {

@@ -45,6 +45,22 @@ WARNING_PATTERNS = [
     r'pip\s+(?:uninstall|remove)\b',         # pip removals
 ]
 
+# Safety v2: syntax that hides or composes another program is conservatively
+# classified as warning in standard mode. This is a guardrail, not a sandbox.
+INDIRECT_EXEC_PATTERNS = [
+    r'\$\(',
+    r'`[^`]+`',
+    r'\b(?:sh|bash|zsh)\s+-c\b',
+    r'\b(?:python|python3|perl|ruby|node)\s+-[ce]\b',
+    r'\bxargs\b.*\b(?:sh|bash|zsh)\b',
+    r'\b(?:base64|xxd)\b[^|\n]*\|\s*(?:sh|bash|zsh)\b',
+    r'\bcurl\b[^|\n]*\|\s*(?:sh|bash|zsh)\b',
+    r'\bwget\b[^|\n]*\|\s*(?:sh|bash|zsh)\b',
+]
+
+def _looks_like_indirect_execution(cmd_lower: str) -> bool:
+    return any(re.search(pattern, cmd_lower) for pattern in INDIRECT_EXEC_PATTERNS)
+
 def is_dangerous_command(cmd: str) -> Tuple[bool, str, str]:
     cmd_lower = cmd.strip().lower()
 
@@ -58,6 +74,9 @@ def is_dangerous_command(cmd: str) -> Tuple[bool, str, str]:
     for pattern in WARNING_PATTERNS:
         if re.search(pattern, cmd_lower):
             return False, CommandRiskLevel.WARNING, f"High-risk command detected (confirmation recommended): {cmd}"
+
+    if _looks_like_indirect_execution(cmd_lower):
+        return False, CommandRiskLevel.WARNING, "Indirect/dynamic shell execution requires confirmation"
 
     if "sudo" in cmd_lower and "rm" in cmd_lower:
         return False, CommandRiskLevel.WARNING, "sudo + rm combination detected"
