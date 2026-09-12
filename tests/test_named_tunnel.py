@@ -86,31 +86,31 @@ def test_plan_domain_migration_preserves_subdomains_and_services(tmp_path):
     cfg = tmp_path / "config.yml"
     cfg.write_text(
         "tunnel: abc\ningress:\n"
-        "  - hostname: termux.walnut.example\n"
+        "  - hostname: termux.old.example\n"
         "    service: http://127.0.0.1:8765\n"
-        "  - hostname: weather.walnut.example\n"
+        "  - hostname: weather.old.example\n"
         "    service: http://127.0.0.1:8876\n"
         "  - service: http_status:404\n",
         encoding="utf-8",
     )
 
     planned = named_tunnel.plan_domain_migration(
-        "new.example", path=str(cfg), from_domain="walnut.example"
+        "new.example", path=str(cfg), from_domain="old.example"
     )
     assert [(old.hostname, new.hostname, new.service) for old, new in planned] == [
-        ("termux.walnut.example", "termux.new.example", "http://127.0.0.1:8765"),
-        ("weather.walnut.example", "weather.new.example", "http://127.0.0.1:8876"),
+        ("termux.old.example", "termux.new.example", "http://127.0.0.1:8765"),
+        ("weather.old.example", "weather.new.example", "http://127.0.0.1:8876"),
     ]
-    assert "walnut.example" in cfg.read_text(encoding="utf-8")
+    assert "old.example" in cfg.read_text(encoding="utf-8")
 
 
 def test_migrate_ingress_domain_is_backed_up_and_validated(tmp_path):
     cfg = tmp_path / "config.yml"
     cfg.write_text(
         "tunnel: abc\ningress:\n"
-        "  - hostname: termux.walnut.example\n"
+        "  - hostname: termux.old.example\n"
         "    service: http://127.0.0.1:8765\n"
-        "  - hostname: alpaca.walnut.example\n"
+        "  - hostname: alpaca.old.example\n"
         "    service: http://127.0.0.1:8877\n"
         "  - service: http_status:404\n",
         encoding="utf-8",
@@ -122,12 +122,12 @@ def test_migrate_ingress_domain_is_backed_up_and_validated(tmp_path):
         return SimpleNamespace(returncode=0, stdout="OK", stderr="")
 
     backup, planned = named_tunnel.migrate_ingress_domain(
-        "next.example", path=str(cfg), from_domain="walnut.example", runner=runner
+        "next.example", path=str(cfg), from_domain="old.example", runner=runner
     )
     text = cfg.read_text(encoding="utf-8")
     assert "termux.next.example" in text
     assert "alpaca.next.example" in text
-    assert "walnut.example" not in text
+    assert "old.example" not in text
     assert Path(backup).is_file()
     assert len(planned) == 2
     assert calls == [["cloudflared", "tunnel", "ingress", "validate"]]
@@ -137,7 +137,7 @@ def test_domain_migration_validation_failure_restores_original(tmp_path):
     cfg = tmp_path / "config.yml"
     original = (
         "tunnel: abc\ningress:\n"
-        "  - hostname: termux.walnut.example\n"
+        "  - hostname: termux.old.example\n"
         "    service: http://127.0.0.1:8765\n"
         "  - service: http_status:404\n"
     )
@@ -150,7 +150,7 @@ def test_domain_migration_validation_failure_restores_original(tmp_path):
         named_tunnel.migrate_ingress_domain(
             "next.example",
             path=str(cfg),
-            from_domain="walnut.example",
+            from_domain="old.example",
             runner=runner,
         )
     assert cfg.read_text(encoding="utf-8") == original

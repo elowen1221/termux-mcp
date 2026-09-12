@@ -11,8 +11,6 @@ from . import managed_mcp
 from . import operations
 from . import permissions
 from . import step_runner
-from . import walnut_board
-from . import walnut_inbox
 from .auth import get_auth_provider
 from .config import MCP_HOST, MCP_PORT, WORKSPACE_ROOT
 
@@ -150,42 +148,6 @@ def tool_send_notification(title: str = "TermuxGPT", content: str = "", priority
     return operations.send_notification(title, content, priority)
 
 
-def tool_inbox_list(status: str = "pending", limit: int = 20, source: str = "") -> dict:
-    return walnut_inbox.list_events(status=status, limit=limit, source=source or None)
-
-
-def tool_inbox_get(event_id: str) -> dict:
-    return walnut_inbox.get_event(event_id)
-
-
-def tool_inbox_ack(event_id: str, note: str = "") -> dict:
-    return walnut_inbox.ack_event(event_id, note)
-
-
-def tool_inbox_status() -> dict:
-    return walnut_inbox.status()
-
-
-def tool_board_add(title: str, description: str = "", category: str = "general", priority: str = "normal", status: str = "idea", owner: str = "qian", effort: str = "normal", next_step: str = "", notes: str = "") -> dict:
-    return walnut_board.add_task(title, description, category, priority, status, owner, effort, next_step, notes)
-
-
-def tool_board_list(status: str = "open", owner: str = "all", limit: int = 50, effort: str = "all") -> dict:
-    return walnut_board.list_tasks(status=status, owner=owner, limit=limit, effort=effort)
-
-
-def tool_board_get(task_id: str) -> dict:
-    return walnut_board.get_task(task_id)
-
-
-def tool_board_update(task_id: str, status: str = "", priority: str = "", effort: str = "", next_step: str = "", notes: str = "", touch: bool = True) -> dict:
-    return walnut_board.update_task(task_id, status, priority, effort, next_step, notes, touch)
-
-
-def tool_board_status() -> dict:
-    return walnut_board.status()
-
-
 def tool_permissions_status() -> dict:
     return permissions.status()
 
@@ -252,15 +214,6 @@ _STEP_TOOLS = {
     "get_battery": tool_get_battery,
     "send_notification": tool_send_notification,
     "permissions_status": tool_permissions_status,
-    "inbox_list": tool_inbox_list,
-    "inbox_get": tool_inbox_get,
-    "inbox_ack": tool_inbox_ack,
-    "inbox_status": tool_inbox_status,
-    "board_add": tool_board_add,
-    "board_list": tool_board_list,
-    "board_get": tool_board_get,
-    "board_update": tool_board_update,
-    "board_status": tool_board_status,
     "mcp_list": tool_mcp_list,
     "mcp_search": tool_mcp_search,
     "mcp_inspect": tool_mcp_inspect,
@@ -333,15 +286,6 @@ def _build_mcp_app():
     mcp.tool(name="get_battery")(tool_get_battery)
     mcp.tool(name="send_notification")(tool_send_notification)
     mcp.tool(name="permissions_status")(tool_permissions_status)
-    mcp.tool(name="inbox_list")(tool_inbox_list)
-    mcp.tool(name="inbox_get")(tool_inbox_get)
-    mcp.tool(name="inbox_ack")(tool_inbox_ack)
-    mcp.tool(name="inbox_status")(tool_inbox_status)
-    mcp.tool(name="board_add")(tool_board_add)
-    mcp.tool(name="board_list")(tool_board_list)
-    mcp.tool(name="board_get")(tool_board_get)
-    mcp.tool(name="board_update")(tool_board_update)
-    mcp.tool(name="board_status")(tool_board_status)
     mcp.tool(name="mcp_install")(tool_mcp_install)
     mcp.tool(name="mcp_list")(tool_mcp_list)
     mcp.tool(name="mcp_search")(tool_mcp_search)
@@ -350,6 +294,9 @@ def _build_mcp_app():
     mcp.tool(name="mcp_call")(tool_mcp_call)
     mcp.tool(name="mcp_remove")(tool_mcp_remove)
     mcp.tool(name="run_steps")(tool_run_steps)
+
+    from . import extensions
+    extensions.register_local_extensions(mcp, _STEP_TOOLS)
 
     app = mcp.streamable_http_app()
     if oauth.oauth_enabled():

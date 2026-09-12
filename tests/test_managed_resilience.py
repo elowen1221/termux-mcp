@@ -8,22 +8,22 @@ def test_cache_remember_search_and_forget(tmp_path, monkeypatch):
     monkeypatch.setattr(managed_resilience, "CACHE_FILE", cache)
 
     managed_resilience.remember(
-        "walnut-weather",
+        "demo-weather",
         "http",
         [{"name": "get_weather", "description": "Get current weather forecast"}],
     )
-    snapshot = managed_resilience.cached("walnut-weather")
+    snapshot = managed_resilience.cached("demo-weather")
     assert snapshot["count"] == 1
 
     result = managed_resilience.search("weather", [
-        {"name": "walnut-weather", "source": "https://example.test/mcp", "transport": "http"}
+        {"name": "demo-weather", "source": "https://example.test/mcp", "transport": "http"}
     ])
     assert result["count"] >= 1
-    assert any(item["server"] == "walnut-weather" for item in result["matches"])
+    assert any(item["server"] == "demo-weather" for item in result["matches"])
     assert any(item.get("tool") == "get_weather" for item in result["matches"])
 
-    managed_resilience.forget("walnut-weather")
-    assert managed_resilience.cached("walnut-weather") is None
+    managed_resilience.forget("demo-weather")
+    assert managed_resilience.cached("demo-weather") is None
 
 
 def test_retry_recovers_after_transient_failures():

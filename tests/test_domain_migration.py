@@ -31,11 +31,11 @@ def test_apply_preserves_subdomains_and_creates_backups(tmp_path):
     home = tmp_path / "home"
     target = project / "stack.sh"
     target.parent.mkdir(parents=True)
-    original = "https://termux.walnut.example/mcp\nhttps://alpaca.walnut.example/mcp\n"
+    original = "https://termux.old.example/mcp\nhttps://alpaca.old.example/mcp\n"
     target.write_text(original, encoding="utf-8")
 
     results = apply_url_rewrites(
-        "walnut.example",
+        "old.example",
         "cheap-next.xyz",
         targets=[RewriteTarget(target, required=True)],
         project_root=project,
@@ -50,16 +50,16 @@ def test_apply_preserves_subdomains_and_creates_backups(tmp_path):
 
 def test_does_not_rewrite_domain_embedded_in_larger_hostname(tmp_path):
     target = tmp_path / "config.txt"
-    target.write_text("https://notwalnut.example/x\nhttps://walnut.example/x\n", encoding="utf-8")
+    target.write_text("https://notold.example/x\nhttps://old.example/x\n", encoding="utf-8")
     apply_url_rewrites(
-        "walnut.example",
+        "old.example",
         "next.example",
         targets=[RewriteTarget(target)],
         project_root=tmp_path,
         home=tmp_path,
     )
     assert target.read_text(encoding="utf-8") == (
-        "https://notwalnut.example/x\nhttps://next.example/x\n"
+        "https://notold.example/x\nhttps://next.example/x\n"
     )
 
 

@@ -36,16 +36,13 @@ class RewritePlan:
 
 def _default_targets(project_root: Path = PROJECT_ROOT, home: Path = HOME) -> list[RewriteTarget]:
     """Known files that may contain public service URLs."""
-    return [
-        RewriteTarget(home / ".config" / "termux-mcp" / "config.env"),
-        RewriteTarget(home / ".config" / "termux-mcp" / "alpaca.env"),
-        RewriteTarget(home / ".config" / "termux-mcp" / "alpaca-oauth.env"),
-        RewriteTarget(home / ".config" / "termux-mcp-weather" / "config.env"),
-        RewriteTarget(project_root / "local_extensions" / "start-walnut-stack.sh", required=True),
-        RewriteTarget(project_root / "local_extensions" / "weather_mcp" / "start.sh", required=True),
-        RewriteTarget(project_root / "local_extensions" / "weather_mcp" / "server.py", required=True),
-        RewriteTarget(project_root / "local_extensions" / "alpaca_mcp" / "server.py", required=True),
-    ]
+    targets = [RewriteTarget(home / ".config" / "termux-mcp" / "config.env")]
+    extra = os.environ.get("TERMUX_MCP_DOMAIN_MIGRATION_TARGETS", "")
+    for raw in extra.split(","):
+        raw = raw.strip()
+        if raw:
+            targets.append(RewriteTarget(Path(raw).expanduser()))
+    return targets
 
 
 def _is_secret(path: Path, home: Path = HOME) -> bool:
