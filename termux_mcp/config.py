@@ -278,6 +278,17 @@ def token_configured() -> bool:
     return bool(AUTH_TOKEN)
 
 
+def save_connection_preference(mode: str, value: str = "") -> None:
+    """Persist the onboarding connection route without owning its infrastructure."""
+    mode = mode.strip().lower()
+    if mode not in ("free", "domain", "external", "local"):
+        raise ValueError("connection mode must be free, domain, external, or local")
+    updates = {"TERMUX_MCP_CONNECTION_MODE": mode}
+    if value:
+        updates["TERMUX_MCP_CONNECTION_VALUE"] = value.strip()
+    _write_config(updates)
+
+
 def save_user_preferences(client: str, permissions: str) -> None:
     """Persist onboarding choices and update this process immediately."""
     client = client.strip().lower()
