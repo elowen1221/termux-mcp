@@ -125,6 +125,19 @@ def test_tail_tunnel_log(isolated_state):
     assert process.tail_tunnel_log(50) == "line1\nline2\nline3\n"
 
 
+def test_status_reports_protocol_initialize_health(isolated_state, monkeypatch, capsys):
+    monkeypatch.setattr(process, "is_running", lambda: True)
+    monkeypatch.setattr(process, "read_pid", lambda: 123)
+    monkeypatch.setattr(process, "port_open", lambda port: True)
+    monkeypatch.setattr(process, "tunnel_is_running", lambda: False)
+    monkeypatch.setattr(process, "mcp_initialize_probe", lambda *a, **k: (True, "initialize OK (test)"))
+    rc = cli.cmd_status()
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "MCP port" in out and "LISTENING" in out
+    assert "MCP initialize: OK" in out
+
+
 def test_status_uses_tunnel_is_running(isolated_state, monkeypatch, capsys):
     """status must only report a tunnel when its PID is really alive."""
     monkeypatch.setattr(process, "is_running", lambda: False)

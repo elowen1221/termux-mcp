@@ -302,7 +302,11 @@ def cmd_status() -> int:
     print(f"Server: {'RUNNING' if running else 'STOPPED'}" + (f" (pid {pid})" if pid else ""))
     print(f"REST http://127.0.0.1:{PORT}: {'OK' if process.port_open(PORT) else 'DOWN'}")
     if MCP_ENABLED:
-        print(f"MCP  http://127.0.0.1:{MCP_PORT}/mcp: {'OK' if process.port_open(MCP_PORT) else 'DOWN'}")
+        mcp_listening = process.port_open(MCP_PORT)
+        print(f"MCP port {MCP_PORT}: {'LISTENING' if mcp_listening else 'DOWN'}")
+        if mcp_listening:
+            mcp_ok, mcp_detail = process.mcp_initialize_probe(MCP_PORT, AUTH_TOKEN, timeout=3)
+            print(f"MCP initialize: {'OK' if mcp_ok else 'FAIL'} — {mcp_detail}")
     print(f"Auth: {'enabled' if token_configured() else 'DISABLED'}")
     from . import config
     print(f"Client: {config.CLIENT_TARGET}")
@@ -565,28 +569,12 @@ def cmd_doctor(json_output: bool = False) -> int:
         _check(checks, f"tunnel_{name}", f"tunnel dep: {name}", found,
                shutil.which(name) or "not installed", warn=not found, emit=emit)
 
-    # Localhost MCP health (authenticated probe)
+    # Localhost MCP protocol health: a real authenticated initialize request.
     if MCP_ENABLED and process.port_open(MCP_PORT):
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{MCP_PORT}/mcp",
-                data=b"{}",
-                method="POST",
-                headers={"Content-Type": "application/json"},
-            )
-            try:
-                urllib.request.urlopen(req, timeout=5)
-                _check(checks, "mcp_health", "MCP health", True, "responded",
-                       emit=emit)
-            except urllib.error.HTTPError as e:
-                _check(checks, "mcp_health", "MCP health", e.code == 401,
-                       f"HTTP {e.code}" + (" (auth working)" if e.code == 401 else ""),
-                       emit=emit)
-        except Exception as e:
-            _check(checks, "mcp_health", "MCP health", False, str(e), emit=emit)
+        mcp_ok, mcp_detail = process.mcp_initialize_probe(MCP_PORT, AUTH_TOKEN, timeout=5)
+        _check(checks, "mcp_health", "MCP initialize", mcp_ok, mcp_detail, emit=emit)
     else:
-        _check(checks, "mcp_health", "MCP health", False,
+        _check(checks, "mcp_health", "MCP initialize", False,
                "MCP port not listening", warn=True, emit=emit)
 
     fails = [c for c in checks if c["status"] == "FAIL"]

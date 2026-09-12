@@ -267,6 +267,47 @@ def port_open(port: int, host: str = "127.0.0.1", timeout: float = 1.0) -> bool:
         return False
 
 
+def mcp_initialize_probe(port: int, token: str = "", timeout: float = 5.0) -> tuple[bool, str]:
+    """Perform a real MCP initialize request, not merely a TCP port probe."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    payload = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "termux-mcp-health", "version": "1"},
+        },
+    }).encode()
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/mcp", data=payload, method="POST", headers=headers
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            body = response.read(65536).decode("utf-8", errors="replace")
+            if response.status != 200:
+                return False, f"HTTP {response.status}"
+            parsed = json.loads(body)
+            result = parsed.get("result", {}) if isinstance(parsed, dict) else {}
+            if not result.get("protocolVersion"):
+                return False, "HTTP 200 but initialize result missing"
+            return True, f"initialize OK ({result['protocolVersion']})"
+    except urllib.error.HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except Exception as exc:
+        return False, str(exc)
+
+
 def wait_http(port: int, timeout: float = 15.0) -> bool:
     """Wait until the port accepts connections (server warm-up)."""
     deadline = time.time() + timeout
