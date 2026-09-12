@@ -7,7 +7,7 @@
 已经安装好 Termux 后，可用一条命令完成环境检测、源码下载或安全更新、依赖安装与最终自检：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lxy426329/Termux-MCP/main/scripts/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/elowen1221/termux-mcp/main/scripts/bootstrap.sh | bash
 ```
 
 第一次安装会自动进入萌系引导：选择 ChatGPT / Claude / Grok、选择权限，
@@ -96,7 +96,7 @@ pkg install -y git
 ## 第 5 步：下载本仓库
 
 ```
-git clone https://github.com/lxy426329/Termux-MCP.git
+git clone https://github.com/elowen1221/termux-mcp.git
 ```
 
 - **正常情况下会看到**：`Cloning into 'Termux-MCP'...` 然后回到 `$`。

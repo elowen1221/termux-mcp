@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Termux-MCP zero-to-running bootstrap.
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/lxy426329/Termux-MCP/main/scripts/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/elowen1221/termux-mcp/main/scripts/bootstrap.sh | bash
 set -Eeuo pipefail
 
-REPOSITORY="${TERMUX_MCP_REPOSITORY:-https://github.com/lxy426329/Termux-MCP.git}"
+REPOSITORY="${TERMUX_MCP_REPOSITORY:-https://github.com/elowen1221/termux-mcp.git}"
 BRANCH="${TERMUX_MCP_BRANCH:-main}"
 TARGET_DIR="${TERMUX_MCP_SOURCE_DIR:-${HOME}/Termux-MCP}"
 SKIP_SOURCE_UPDATE=false
@@ -75,7 +75,7 @@ STEP="prepare source checkout"
 if [[ -d "$TARGET_DIR/.git" ]]; then
   CURRENT_ORIGIN="$(git -C "$TARGET_DIR" remote get-url origin 2>/dev/null || true)"
   case "$CURRENT_ORIGIN" in
-    "$REPOSITORY"|https://github.com/lxy426329/Termux-MCP|git@github.com:lxy426329/Termux-MCP.git) ;;
+    "$REPOSITORY"|https://github.com/elowen1221/termux-mcp|git@github.com:elowen1221/termux-mcp.git) ;;
     *) fail "$TARGET_DIR is a different Git repository (origin: ${CURRENT_ORIGIN:-missing})" ;;
   esac
 

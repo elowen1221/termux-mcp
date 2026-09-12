@@ -4,10 +4,10 @@
 #
 # 用法（在 Termux 中）：
 #   方法 A（推荐，先看内容再执行）：
-#     curl -L -o install.sh https://raw.githubusercontent.com/lxy426329/Termux-MCP/main/scripts/install.sh
+#     curl -L -o install.sh https://raw.githubusercontent.com/elowen1221/termux-mcp/main/scripts/install.sh
 #     bash install.sh
 #   方法 B（一行命令）：
-#     curl -fsSL https://raw.githubusercontent.com/lxy426329/Termux-MCP/main/scripts/install.sh | bash
+#     curl -fsSL https://raw.githubusercontent.com/elowen1221/termux-mcp/main/scripts/install.sh | bash
 #
 # 脚本是幂等的：重复运行不会破坏已有配置。
 # 不会把 token 打印到日志，不会上传任何 secret。
@@ -101,7 +101,7 @@ else
     fail "$SOURCE_DIR 已存在但不是 Git 仓库，请移走该目录后重试"
   else
     log "未找到项目文件，从 GitHub 克隆到 $SOURCE_DIR ..."
-    run_logged git clone --depth 1 https://github.com/lxy426329/Termux-MCP.git "$SOURCE_DIR" || fail "git clone 失败"
+    run_logged git clone --depth 1 https://github.com/elowen1221/termux-mcp.git "$SOURCE_DIR" || fail "git clone 失败"
     cd "$SOURCE_DIR"
   fi
   run_logged pip install . || fail "pip install . 失败"
