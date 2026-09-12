@@ -44,6 +44,7 @@ from .config import (
     clear_public_url,
     ensure_token,
     get_public_url,
+    get_last_public_url,
     public_url_source,
     rotate_token,
     set_public_url,
@@ -84,6 +85,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
 
     sub.add_parser("status", help="Show server / tunnel / auth status")
+    sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
 
     p_logs = sub.add_parser("logs", help="Show recent server logs")
     p_logs.add_argument("-n", type=int, default=50, help="Number of lines (default 50)")
@@ -149,6 +151,10 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
 # ── Commands ─────────────────────────────────────────────────────────────────
 
+def _reuse_runtime_tunnel(choice: str, source: str, url: str, tunnel_running: bool) -> bool:
+    """True when default start can safely keep the existing free URL."""
+    return choice == "auto" and tunnel_running and source == "runtime" and bool(url)
+
 def cmd_start(args: argparse.Namespace) -> int:
     # A. Load config / ensure token.
     token = ensure_token()
@@ -180,18 +186,39 @@ def cmd_start(args: argparse.Namespace) -> int:
             process.stop_server()
         return 1
 
-    # E/F/G/H. Tunnel.
+    # E/F/G/H. Tunnel. Anonymous/free tunnel hostnames are ephemeral, so the
+    # default auto path must reuse a still-running tunnel instead of creating
+    # a fresh hostname after a server crash/restart. Explicit --tunnel X still
+    # means "rebuild with X".
     choice = "none" if args.no_tunnel else args.tunnel
-    if choice != "none":
+    result = None
+    mcp_url = ""
+    previous_url = get_public_url()
+    previous_source = public_url_source()
+    previous_runtime_url = previous_url if previous_source == "runtime" else get_last_public_url()
+    reuse_tunnel = _reuse_runtime_tunnel(
+        choice, previous_source, previous_url, process.tunnel_is_running()
+    )
+    if choice != "none" and reuse_tunnel:
+        mcp_url = previous_url.rstrip("/") + "/mcp"
+        print(f"Tunnel kept (pid {process.read_tunnel_pid()}): {mcp_url}")
+        if tunnel_mod.verify_url(previous_url):
+            print("Public endpoint: reachable — existing free URL preserved")
+        else:
+            print("WARNING: preserved tunnel is still starting; URL was not rebuilt.")
+    elif choice != "none":
         result = tunnel_mod.start_tunnel(MCP_PORT, choice)
         if result.url:
             mcp_url = result.url.rstrip("/") + "/mcp"
             print(f"Tunnel ({result.provider}): {mcp_url}")
             if result.process and result.process.pid:
                 process.write_tunnel_pid(result.process.pid)
-            # Propagate the real public URL so OAuth metadata / challenges
-            # served by the server process use it (never Host headers).
             set_public_url(result.url)
+            if (previous_runtime_url
+                    and previous_runtime_url.rstrip("/") != result.url.rstrip("/")):
+                print("NOTICE: free tunnel URL changed because the old tunnel was no longer running.")
+                print(f"Previous MCP URL: {previous_runtime_url.rstrip('/')}/mcp")
+                print("Update the saved MCP URL in your client once; future server-only restarts keep this tunnel.")
             if tunnel_mod.verify_url(result.url):
                 print("Public endpoint: reachable")
             else:
@@ -204,7 +231,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     print("\nNext steps:")
     print(f"  REST API:   http://127.0.0.1:{PORT}")
     print(f"  MCP local:  http://127.0.0.1:{MCP_PORT}/mcp")
-    if choice != "none" and result.url:
+    if choice != "none" and mcp_url:
         print(f"  MCP public: {mcp_url}")
     print("  Status:     termux-mcp status")
     print("  Logs:       termux-mcp logs")
@@ -349,6 +376,27 @@ def cmd_status() -> int:
     else:
         print("Public MCP URL: unavailable")
     return 0 if running else 1
+
+
+def cmd_url() -> int:
+    """Print the current public URL without exposing any auth secret."""
+    pub = get_public_url()
+    if not pub:
+        print("Public MCP URL: unavailable")
+        print("Run: termux-mcp start")
+        return 1
+    print(pub.rstrip("/") + "/mcp")
+    source = public_url_source()
+    if source == "runtime":
+        if process.tunnel_is_running():
+            print(f"Free tunnel: preserved (pid {process.read_tunnel_pid()})")
+            print("Server-only restart keeps this URL. Do not rebuild the tunnel unless needed.")
+        else:
+            print("Free tunnel: offline")
+            print("The next anonymous tunnel may receive a different URL.")
+    else:
+        print("URL source: configured")
+    return 0
 
 
 def cmd_logs(args: argparse.Namespace) -> int:
@@ -642,6 +690,8 @@ def run(argv: Optional[List[str]] = None) -> int:
         return cmd_restart(args)
     if args.command == "status":
         return cmd_status()
+    if args.command == "url":
+        return cmd_url()
     if args.command == "logs":
         return cmd_logs(args)
     if args.command == "doctor":

@@ -136,6 +136,7 @@ OAUTH_SCOPES: str = _env_or_file("TERMUX_MCP_OAUTH_SCOPES", "mcp:read mcp:write"
 # server process (a separate subprocess) can serve correct OAuth metadata
 # without trusting Host/X-Forwarded-* headers. Profile-aware via STATE_DIR.
 PUBLIC_URL_FILE: str = os.path.join(STATE_DIR, "public_url")
+LAST_PUBLIC_URL_FILE: str = os.path.join(STATE_DIR, "last_public_url")
 
 
 def set_public_url(url: str) -> None:
@@ -149,11 +150,28 @@ def set_public_url(url: str) -> None:
 
 
 def clear_public_url() -> None:
-    """Drop the runtime public URL (used when the tunnel stops)."""
+    """Drop the runtime public URL while remembering the last free URL."""
+    try:
+        with open(PUBLIC_URL_FILE, "r", encoding="utf-8") as f:
+            previous = f.read().strip().rstrip("/")
+        if previous:
+            os.makedirs(os.path.dirname(LAST_PUBLIC_URL_FILE), exist_ok=True)
+            with open(LAST_PUBLIC_URL_FILE, "w", encoding="utf-8") as f:
+                f.write(previous)
+    except OSError:
+        pass
     try:
         os.remove(PUBLIC_URL_FILE)
     except OSError:
         pass
+
+
+def get_last_public_url() -> str:
+    try:
+        with open(LAST_PUBLIC_URL_FILE, "r", encoding="utf-8") as f:
+            return f.read().strip().rstrip("/")
+    except OSError:
+        return ""
 
 
 def get_public_url() -> str:

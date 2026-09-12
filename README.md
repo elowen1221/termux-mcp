@@ -173,7 +173,7 @@ termux-mcp restart
 
 - **tunnel（隧道）** 把你的手机上的服务"搬到"公网上，让外面的 AI 客户端能连上。
 - 你的手机在局域网/运营商网络里，别人直接连不上。隧道给一个公网 `https://...` 地址。
-- 支持的隧道：**pinggy**（默认，最稳）、**cloudflare**、**localhost.run**。
+- 支持的免费隧道：**pinggy**（默认优先）、**cloudflare quick tunnel**、**localhost.run**。这些地址不需要购买域名，但属于服务商分配的临时公网地址。
 - 指定隧道：
 
 ```
@@ -183,7 +183,10 @@ termux-mcp restart --tunnel localhost-run
 ```
 
 - `start` 的 `--tunnel auto`（默认）会自动按顺序尝试可用的隧道，卡住就换下一个。
-- **`restart` 默认只重启服务器，不会动隧道**：正在运行的隧道、它的 PID 和已验证的公网 URL 都会保留，所以 ChatGPT 里保存的 MCP URL 不会失效。只有显式加 `--tunnel`（重建隧道）或 `--no-tunnel`（停止隧道）才会动隧道。
+- **`restart` 默认只重启服务器，不会动隧道**：正在运行的隧道、它的 PID 和已验证的公网 URL 都会保留，所以 ChatGPT 里保存的 MCP URL 不会失效。
+- **`start` 现在也会保护免费 URL**：如果服务器意外退出、但原来的免费隧道进程仍然活着，再运行普通 `termux-mcp start` 会复用旧隧道，而不是重新申请一个地址。
+- 只有显式加 `--tunnel <provider>`、执行 `stop` 后重新启动、手机重启/系统杀掉隧道进程，或者隧道服务商主动断开时，免费地址才可能变化。地址变化时 CLI 会明确打印旧地址和新地址，提醒你更新客户端。
+- 随时运行 `termux-mcp url` 可以查看当前 MCP 公网地址，以及这条免费隧道是否仍在被保留。
 
 ## 第 11 步：如何连接 MCP 客户端
 
@@ -192,7 +195,7 @@ termux-mcp restart --tunnel localhost-run
 3. 添加一个 MCP server，类型选 **Streamable HTTP**（或 SSE/HTTP），地址填上面的 URL。
 4. 认证方式选 **Bearer token**（或自定义 Header），填 `Authorization: Bearer <你的token>`。
    - 有些客户端只让填 token 本身，那就只填 token 那串字符。
-5. 连接成功后，当前版本可暴露 **26 个 MCP 工具**，包括 shell/文件/设备能力、权限状态、Inbox/Board、managed MCP 管理以及 `run_steps` 多步骤工作流。实际可执行能力仍受你选择的权限模式和 Android/Termux 权限限制。
+5. 连接成功后，公开核心当前提供 **17 个 MCP 工具**，包括 shell/文件/设备能力、权限状态、managed MCP 管理以及 `run_steps` 多步骤工作流。设备自己的私有扩展可以通过本地扩展接口额外挂载，不需要提交进公共仓库。实际可执行能力仍受你选择的权限模式和 Android/Termux 权限限制。
 
 ## 第 12 步：如何停止
 
@@ -202,13 +205,22 @@ termux-mcp stop
 
 - 会同时停掉服务器和隧道。
 
-## 第 13 步：第二天如何再次启动
+## 第 13 步：第二天如何再次使用
+
+如果 Termux-MCP 和免费隧道还在后台运行，不需要重新 `start`，直接继续用即可。先看：
+
+```
+termux-mcp status
+termux-mcp url
+```
+
+如果只是 MCP 服务器退出、免费隧道仍然存活：
 
 ```
 termux-mcp start
 ```
 
-- 就这么简单。token 已经存在，不会重新生成。
+普通 `start` 会优先复用现有免费隧道，尽量保持原 URL。若你之前执行了 `termux-mcp stop`、手机重启，或免费隧道本身已经断开，则下一次启动可能得到新 URL；CLI 会把变化明确打印出来。token 已经存在，不会重新生成。
 
 ## 第 14 步：如何更新项目
 

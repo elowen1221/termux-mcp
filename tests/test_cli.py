@@ -495,3 +495,33 @@ def test_start_server_drops_tool_context_from_child_env(isolated_state, monkeypa
     pid = process.start_server()
     assert pid == 43210
     assert "TERMUX_MCP_TOOL_CONTEXT" not in captured
+
+
+def test_reuse_runtime_tunnel_only_for_default_auto():
+    assert cli._reuse_runtime_tunnel("auto", "runtime", "https://free.example", True)
+    assert not cli._reuse_runtime_tunnel("pinggy", "runtime", "https://free.example", True)
+    assert not cli._reuse_runtime_tunnel("auto", "configured", "https://mcp.example", True)
+    assert not cli._reuse_runtime_tunnel("auto", "runtime", "", True)
+    assert not cli._reuse_runtime_tunnel("auto", "runtime", "https://free.example", False)
+
+
+def test_url_reports_preserved_free_tunnel(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "get_public_url", lambda: "https://free.example")
+    monkeypatch.setattr(cli, "public_url_source", lambda: "runtime")
+    monkeypatch.setattr(process, "tunnel_is_running", lambda: True)
+    monkeypatch.setattr(process, "read_tunnel_pid", lambda: 4321)
+    assert cli.cmd_url() == 0
+    out = capsys.readouterr().out
+    assert "https://free.example/mcp" in out
+    assert "preserved" in out
+    assert "4321" in out
+
+
+def test_url_warns_when_free_tunnel_is_offline(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "get_public_url", lambda: "https://old-free.example")
+    monkeypatch.setattr(cli, "public_url_source", lambda: "runtime")
+    monkeypatch.setattr(process, "tunnel_is_running", lambda: False)
+    assert cli.cmd_url() == 0
+    out = capsys.readouterr().out
+    assert "offline" in out
+    assert "different URL" in out

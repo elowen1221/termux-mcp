@@ -161,7 +161,7 @@ verified path for clients that support custom headers.
 
 ## Restart survival
 
-Anonymous tunnel hostnames change whenever the tunnel is rebuilt, but a
+Anonymous tunnel hostnames can change whenever the tunnel is rebuilt. Termux-MCP preserves a live tunnel across normal server restarts and reuses it on ordinary `start` after a server-only failure, but provider-side disconnects, phone reboots, `stop`, or an explicit tunnel rebuild can still require a new client URL. A
 plain `termux-mcp restart` is **server-only**: the running tunnel, its PID
 and the verified public URL are preserved, so ChatGPT's saved MCP URL stays
 valid. On startup the server re-reads the persisted public URL
