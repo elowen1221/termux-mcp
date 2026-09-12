@@ -109,7 +109,7 @@ HOST: str = _env_or_file("TERMUX_MCP_HOST", "127.0.0.1")
 # Command timeout in seconds. 0 (default) = NO timeout — long operations
 # like pkg update/upgrade/install run until they finish. Set a positive
 # value (e.g. 600) to re-enable the watchdog kill.
-COMMAND_TIMEOUT: int = _int_setting("TERMUX_MCP_TIMEOUT", "0", 0, 86400)
+COMMAND_TIMEOUT: int = _int_setting("TERMUX_MCP_TIMEOUT", "120", 1, 86400)
 
 # Cap on streamed command output sent to clients. Output beyond this is
 # drained (process keeps running) but discarded, with a truncation marker

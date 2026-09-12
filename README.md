@@ -1,27 +1,36 @@
 # Termux-MCP
 
-> **Fork notice**: This repository is a fork of [termuxgpt/termux-mcp](https://github.com/termuxgpt/termux-mcp) (upstream, AGPL-3.0). All original code, copyright, and attribution belong to the upstream authors. This fork keeps the original REST API intact and adds a standards-compliant MCP layer on top of it.
+> **Fork & thanks**: This project is built on [termuxgpt/termux-mcp](https://github.com/termuxgpt/termux-mcp), the original upstream project. Many core ideas and the original REST/device-control foundation come from its authors and contributors. Thank you for making the project open source. This fork remains AGPL-3.0, preserves upstream attribution, and focuses on a friendlier Agent/MCP gateway, onboarding, permissions, managed MCPs, workflows, OAuth, tunnels, and operational safety.
 
-## 快速安装（从空 Termux 开始）
+## 新用户先看这里：从“手机里还没有 Termux”开始
 
-已经安装好 Termux 后，可用一条命令完成环境检测、源码下载或安全更新、依赖安装与最终自检：
+### 0. 你需要什么
+
+- 一台 Android 手机。
+- **Termux 应用**。如果你还没有 Termux，请先从 [F-Droid 的 Termux 页面](https://f-droid.org/packages/com.termux/) 或 [Termux 官方 GitHub Releases](https://github.com/termux/termux-app/releases) 安装。不要混装来自不同来源的 Termux 与 Termux 插件。
+- 普通功能不要求 root。需要电池、通知、定位等 Android 能力时，再安装与 Termux **同一来源**的 Termux:API 应用，并在 Termux 中运行 `pkg install -y termux-api`。
+- 能访问 GitHub/Python 包源的网络。
+
+> 不熟悉 APK/F-Droid？优先选 F-Droid，安装 Termux 后打开它，等黑色终端出现 `$` 提示符，再回来继续。
+
+### 1. 推荐：复制一条命令
+
+在 **Termux 黑色终端里**粘贴下面这一条。它会自己安装 Git、下载本仓库，再进入项目安装器；安装器会准备 Python/SSH、生成本地密钥配置并运行自检：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/elowen1221/termux-mcp/main/scripts/bootstrap.sh | bash
 ```
 
-第一次安装会自动进入萌系引导：选择 ChatGPT / Claude / Grok、选择权限，
-然后启动服务并把唯一需要复制的 MCP URL 交给你。以后直接在 AI 对话框里操作即可。
+第一次安装会进入引导：选择客户端与权限级别，然后启动服务并给出连接信息。建议新用户先用 `standard`；`full` 是受信任 Agent 模式，会跳过命令风险确认。
 
-如果希望逐步检查每条命令，继续阅读下面的零基础教程。
+安装后先运行 `termux-mcp doctor`。如果全部关键项通过，再连接你的 MCP 客户端。希望逐步检查每条命令，可以继续阅读下面的零基础教程。
 
 ## Changes in this fork
 
 This fork adds a minimal, standards-compliant **MCP (Model Context Protocol)** layer without removing the existing REST API:
 
 - **MCP Streamable HTTP endpoint** at `/mcp` (port `8765` by default), built on the official `mcp` Python SDK (`mcp>=1.28,<2`) + `uvicorn`.
-- **14 MCP tools**: 8 built-in device/file tools plus permission visibility and
-  managed-MCP control (`mcp_install`, `mcp_list`, `mcp_inspect`, `mcp_call`, `mcp_remove`).
+- **26 MCP tools**: shell/files/device tools, permission visibility, Inbox/Board helpers, managed-MCP lifecycle (`mcp_install`, `mcp_list`, `mcp_search`, `mcp_inspect`, `mcp_health`, `mcp_call`, `mcp_remove`), and bounded multi-step workflows (`run_steps`).
 - **One-time friendly onboarding**: `termux-mcp setup` asks only for the target AI
   and permission level, starts the gateway, then prints one copy-ready URL.
 - **Owner-selected permissions**: `read-only`, `standard`, or `full`; full mode is
@@ -55,11 +64,10 @@ This fork adds a minimal, standards-compliant **MCP (Model Context Protocol)** l
 
 ## 第 1 步：安装 Termux
 
-1. 打开手机上的 **F-Droid**（一个应用商店）。如果没有，先装 F-Droid。
-2. 在 F-Droid 里搜索 **Termux**，安装它。
-   - ⚠️ 不要从 Google Play 装 Termux（版本太旧）。
-   - 也可以从 Termux 官网 https://termux.dev 下载。
-3. 打开 Termux，你会看到一个黑色窗口，底部有光标在闪。这就是"终端"。
+1. 如果手机还没有 **F-Droid**，可以先安装 F-Droid；然后打开 [Termux 的 F-Droid 页面](https://f-droid.org/packages/com.termux/) 安装。
+2. 也可以直接从 [Termux 官方 GitHub Releases](https://github.com/termux/termux-app/releases) 获取官方 APK。
+3. Termux 与 Termux:API 等插件必须保持同一安装来源/签名，不要混装。
+4. 打开 Termux，你会看到黑色终端窗口和 `$` 提示符。
 
 ## 第 2 步：第一次打开 Termux
 
@@ -184,7 +192,7 @@ termux-mcp restart --tunnel localhost-run
 3. 添加一个 MCP server，类型选 **Streamable HTTP**（或 SSE/HTTP），地址填上面的 URL。
 4. 认证方式选 **Bearer token**（或自定义 Header），填 `Authorization: Bearer <你的token>`。
    - 有些客户端只让填 token 本身，那就只填 token 那串字符。
-5. 连接成功后，客户端就能看到 8 个工具：`run_command`、`read_file`、`write_file`、`list_files`、`make_directory`、`get_location`、`get_battery`、`send_notification`。
+5. 连接成功后，当前版本可暴露 **26 个 MCP 工具**，包括 shell/文件/设备能力、权限状态、Inbox/Board、managed MCP 管理以及 `run_steps` 多步骤工作流。实际可执行能力仍受你选择的权限模式和 Android/Termux 权限限制。
 
 ## 第 12 步：如何停止
 
@@ -254,7 +262,7 @@ termux-mcp restart
 | `TERMUX_MCP_WORKSPACE` | 空 | MCP 文件工具的工作区根目录（realpath 边界检查） |
 | `TERMUX_MCP_CLIENT` | `chatgpt` | 首选客户端：`chatgpt` / `claude` / `grok` |
 | `TERMUX_MCP_PERMISSIONS` | `standard` | 权限：`read-only` / `standard` / `full` |
-| `TERMUX_MCP_TIMEOUT` | `0` | 命令超时秒数（0=不超时） |
+| `TERMUX_MCP_TIMEOUT` | `120` | 普通命令超时秒数（防止断线后孤儿任务长期占住 MCP；长任务应使用后台任务/会话能力） |
 | `TERMUX_MCP_MAX_OUTPUT` | `20000` | 输出上限字节 |
 | `TERMUX_MCP_TUNNEL_PROVIDERS` | `pinggy,cloudflare,localhost-run` | auto 模式的隧道顺序 |
 | `TERMUX_MCP_TUNNEL_TIMEOUT` | `45` | 单个隧道超时秒数 |
@@ -321,6 +329,25 @@ Static Bearer token is the default auth mode. A standards-compliant **OAuth 2.0 
 | Pinggy URL 变化 | 免费隧道每次**重建** URL 会变 | 普通 `termux-mcp restart` 会保留隧道和 URL，不用重新复制；只有 `restart --tunnel ...` 重建后才需要更新客户端 |
 | Android 杀后台 | 系统回收了 Termux 进程 | 用 `termux-wake-lock` 保持唤醒；或 Termux 设置里允许后台运行 |
 | 网络/VPN 导致 tunnel 失败 | 运营商/VPN 限制 | 换网络、关 VPN、换隧道 |
+
+# 同类项目怎么选
+
+Termux/Android MCP 项目侧重点不同，没有一个方案在所有维度都最好：
+
+| 项目 | 更适合 | 主要特点 | 相比本 fork 的取舍 |
+|---|---|---|---|
+| **本 fork (`elowen1221/termux-mcp`)** | 想把远程 AI 长期接入 Termux，并继续管理其他 MCP/工作流 | REST + Streamable HTTP MCP、OAuth/Bearer、三档权限、managed MCP、`run_steps`、多 tunnel、doctor/onboarding | 功能面更大，因此安全边界和兼容性需要持续测试 |
+| **上游 `termuxgpt/termux-mcp`** | 想要更接近原始项目、较简单的 Termux shell/device bridge | REST + native MCP，安全检查、文件快照/回收站等基础扎实 | 本 fork 在它之上增加了 Agent 工作台和部署层；同步上游时需要处理分叉 |
+| **`TecnicalBot/termux-mcp`** | 安全默认值优先、愿意显式开启敏感工具 | Go 实现、default-deny、shell allowlist、JSONL audit、后台任务、termux-services | 它的默认拒绝和审计设计更严格；本 fork 的 raw-shell/工作流自由度更高 |
+| **`shizzgar/shizuku-mcp`** | 需要通过 Shizuku 获得更强 Android 控制 | Termux + Shizuku/rish、统一 shell、持久 session | Android 控制更深入，但部署/权限模型不同；本 fork 更聚焦 Termux + MCP gateway |
+
+如果目标是“让可信 AI 在自己的手机 Termux 里持续做工程任务”，本 fork 的优势是**连接、运维、MCP 编排和长工作流整合在一起**；如果目标是给陌生/不完全可信 Agent 最小权限，优先参考 default-deny/allowlist 类型方案。
+
+# Acknowledgements / 致谢
+
+特别感谢 **[termuxgpt/termux-mcp](https://github.com/termuxgpt/termux-mcp)** 的作者与贡献者。本仓库是它的 fork；原项目提供了 Termux HTTP/设备控制、安全检查、文件操作等重要基础，也是这个增强版本能够继续发展的起点。
+
+同时感谢 [Termux](https://github.com/termux/termux-app) 及其生态、[Model Context Protocol](https://modelcontextprotocol.io/) 社区和本项目使用的开源依赖。所有上游版权与许可证声明均应继续保留；本 fork 按 AGPL-3.0 发布。
 
 # Development
 

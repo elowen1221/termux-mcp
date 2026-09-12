@@ -79,6 +79,15 @@ def test_execute_command_stderr_and_exit_code():
     assert "boom" in r.stderr
 
 
+def test_execute_command_timeout_terminates_process_group():
+    r = operations.execute_command(
+        'python -c "import time; time.sleep(30)"', timeout=1
+    )
+    assert r.timed_out is True
+    assert r.cancelled is True
+    assert r.exit_code != 0
+
+
 def test_execute_command_stream_callback():
     lines = []
     r = operations.execute_command("echo a; echo b", stream=lambda line, is_stderr: lines.append(line))
