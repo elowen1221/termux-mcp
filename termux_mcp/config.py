@@ -119,6 +119,8 @@ MAX_OUTPUT_BYTES: int = _int_setting(
 )
 
 AUTH_TOKEN: str = _env_or_file("TERMUX_MCP_AUTH_TOKEN", "")
+CONNECTION_MODE: str = _env_or_file("TERMUX_MCP_CONNECTION_MODE", "free").strip().lower()
+CONNECTION_VALUE: str = _env_or_file("TERMUX_MCP_CONNECTION_VALUE", "").strip()
 REQUIRE_AUTH: bool = bool(AUTH_TOKEN)
 
 # OAuth / auth-discovery (RFC 9728 protected resource metadata).

@@ -86,6 +86,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     sub.add_parser("status", help="Show server / tunnel / auth status")
     sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
+    sub.add_parser("guide", help="Show a beginner cheat sheet and the next connection step")
 
     p_logs = sub.add_parser("logs", help="Show recent server logs")
     p_logs.add_argument("-n", type=int, default=50, help="Number of lines (default 50)")
@@ -428,6 +429,11 @@ def cmd_token(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_guide() -> int:
+    from .guide import run_guide
+    return run_guide()
+
+
 def cmd_setup(args: argparse.Namespace) -> int:
     from .onboarding import run_setup
     return run_setup(args, cmd_start)
@@ -692,6 +698,8 @@ def run(argv: Optional[List[str]] = None) -> int:
         return cmd_status()
     if args.command == "url":
         return cmd_url()
+    if args.command == "guide":
+        return cmd_guide()
     if args.command == "logs":
         return cmd_logs(args)
     if args.command == "doctor":

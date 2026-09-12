@@ -57,6 +57,9 @@ def run_setup(args,start_callback,input_stream=None,output=None):
         print("Termux-MCP 已经配置过啦 ( Ꙭ)\n查看连接地址：termux-mcp url\n重新走向导：termux-mcp setup --force",file=output); return 0
     print("\n╭──────────────────────────────────────────╮\n│            Termux-MCP 新手向导           │\n│                  ( Ꙭ)                    │\n│     不懂 Linux / MCP 也没关系，跟我走     │\n╰──────────────────────────────────────────╯",file=output)
     print("\n不知道选什么？一路按 Enter 就可以。",file=output)
+    print("\n开始前先送你一张小抄：安装完成后运行 termux-mcp guide",file=output)
+    print("它会显示最常用的 5 个命令，而且排好了版，方便直接截图保存。",file=output)
+    print("⚠ 不要把 termux-mcp token --show 的结果截给别人。",file=output)
     with ExitStack() as stack:
         if interactive and input_stream is None:
             try:input_stream=stack.enter_context(open("/dev/tty","r",encoding="utf-8"))
@@ -109,4 +112,5 @@ def run_setup(args,start_callback,input_stream=None,output=None):
         print("\n本机 MCP 已启动；你提供的公网入口不会被 Termux-MCP 擅自修改。",file=output); _print_client_steps(client,url,output)
     elif mode=="local": print(f"\n当前只在手机本机使用：\n{url}",file=output)
     else:_print_client_steps(client,url,output); print("\n免费地址在隧道存活期间会尽量保留；手机重启或隧道真正断开后可能变化。",file=output)
-    print("\n以后记住两个命令就够啦：\n  termux-mcp status\n  termux-mcp url",file=output); return 0
+    print("\n不知道下一步或想保存常用命令：\n  termux-mcp guide   # 打开可截图的新手小抄",file=output)
+    print("\n平时最常用：\n  termux-mcp status  # 看状态\n  termux-mcp url     # 看连接地址",file=output); return 0
