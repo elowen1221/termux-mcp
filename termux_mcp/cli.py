@@ -50,7 +50,7 @@ from .config import (
     token_configured,
 )
 
-TUNNEL_CHOICES = ["auto", "pinggy", "cloudflare", "localhost-run", "none"]
+TUNNEL_CHOICES = ["auto", "relay", "pinggy", "cloudflare", "localhost-run", "none"]
 
 
 def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:

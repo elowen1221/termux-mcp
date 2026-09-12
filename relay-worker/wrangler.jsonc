@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "termux-mcp-relay",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-12",
+  "durable_objects": {
+    "bindings": [{ "name": "DEVICES", "class_name": "DeviceRelay" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceRelay"] }]
+}

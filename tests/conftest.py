@@ -14,6 +14,7 @@ os.environ["HOME"] = _TMP
 os.environ["TERMUX_MCP_AUTH_TOKEN"] = "test-token-0123456789abcdef"
 os.environ["TERMUX_MCP_MCP_PORT"] = "18765"
 os.environ["TERMUX_MCP_WORKSPACE"] = ""
+os.environ.pop("TERMUX_MCP_TOOL_CONTEXT", None)
 # Loopback integration tests must never use a developer or CI machine's
 # outbound proxy.
 for _proxy_name in ("ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy",

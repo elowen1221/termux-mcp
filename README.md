@@ -360,3 +360,7 @@ python scripts/mcp_smoke.py         # live-server smoke test
 # License
 
 AGPL-3.0 — see [LICENSE](LICENSE). Original project by [termuxgpt/termux-mcp](https://github.com/termuxgpt/termux-mcp).
+
+### Permanent URL without buying a domain (Stable Relay)
+
+A stable relay mode is being added for first-time users who do not own a domain. Instead of receiving a new anonymous-tunnel hostname after every tunnel rebuild, each installation keeps a random device identity and uses one permanent URL such as `https://relay.walnutnest.buzz/d/<device-id>/mcp`. The phone connects outward to the relay, so no inbound port or personal Cloudflare account is required. The self-hosted named-tunnel/custom-domain path remains available for users who want full infrastructure control. See `docs/STABLE_RELAY.md` for architecture, security boundaries, and deployment status.

@@ -20,6 +20,7 @@ dependencies = [
     "packaging>=23",
     "tomli>=2; python_version<'3.11'",
     "uvicorn>=0.30",
+    "websockets>=13,<16",
 ]
 
 [project.optional-dependencies]

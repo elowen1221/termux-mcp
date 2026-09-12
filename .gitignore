@@ -21,3 +21,6 @@ build/
 /ngrok*
 config.env
 *.local
+
+node_modules/
+relay-worker/.wrangler/

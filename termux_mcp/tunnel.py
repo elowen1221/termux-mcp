@@ -4,6 +4,7 @@ Supported providers (order is configurable via TERMUX_MCP_TUNNEL_PROVIDERS):
   * pinggy        — `ssh -p 443 -R0:localhost:<port> a@free.pinggy.io`
   * cloudflare    — `cloudflared tunnel --url http://127.0.0.1:<port>`
   * localhost-run — `ssh -R 80:localhost:<port> nokey@localhost.run`
+  * relay         — stable project relay URL; no personal domain required
 
 `start_tunnel(port, "auto")` tries each available provider in order, gives
 each a bounded timeout, terminates a provider that hangs, and returns the
@@ -19,6 +20,7 @@ import queue
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -144,6 +146,11 @@ def _is_valid_tunnel_url(provider: str, url: str) -> bool:
         host = urllib.parse.urlparse(url).hostname or ""
     except Exception:
         return False
+    if provider == "relay":
+        from .relay import RELAY_BASE
+        expected = urllib.parse.urlparse(RELAY_BASE).hostname or ""
+        parsed = urllib.parse.urlparse(url)
+        return host == expected and bool(re.fullmatch(r"/d/[a-z0-9-]{12,64}", parsed.path))
     return any(
         re.fullmatch(pat, host) for pat in _TUNNEL_HOSTNAME_RULES.get(provider, [])
     )
@@ -385,10 +392,33 @@ class LocalhostRunProvider(TunnelProvider):
         )
 
 
+class RelayProvider(TunnelProvider):
+    name = "relay"
+    def available(self) -> bool:
+        try:
+            import websockets
+            return True
+        except ImportError:
+            return False
+    def start(self, port: int, timeout: int) -> TunnelResult:
+        from .relay import ensure_identity, public_url
+        device_id, _ = ensure_identity()
+        log_f = open(process.TUNNEL_LOG_FILE, "ab")
+        env = os.environ.copy()
+        env.pop("TERMUX_MCP_TOOL_CONTEXT", None)
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "termux_mcp.relay"],
+            stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT,
+            env=env, start_new_session=True,
+        )
+        return TunnelResult(provider=self.name, url=public_url(device_id), process=proc)
+
+
 _PROVIDERS = {
     "pinggy": PinggyProvider,
     "cloudflare": CloudflareProvider,
     "localhost-run": LocalhostRunProvider,
+    "relay": RelayProvider,
 }
 
 
