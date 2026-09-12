@@ -195,6 +195,11 @@ def execute_command(
                         pass
 
     try:
+        child_env = os.environ.copy()
+        # Commands launched through the MCP/REST execution tool must not
+        # recursively health-probe the same MCP transport (that can deadlock
+        # while the current CallToolRequest is still in flight).
+        child_env["TERMUX_MCP_TOOL_CONTEXT"] = "1"
         popen_kwargs = {
             "shell": True,
             "stdout": subprocess.PIPE,
@@ -202,6 +207,7 @@ def execute_command(
             "stdin": subprocess.PIPE,
             "text": True,
             "cwd": get_current_dir(),
+            "env": child_env,
         }
         if hasattr(os, "setsid"):
             popen_kwargs["preexec_fn"] = os.setsid

@@ -168,12 +168,16 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     # D. Wait for REST + MCP health.
     rest_ok = process.wait_http(PORT)
-    mcp_ok = process.wait_http(MCP_PORT) if MCP_ENABLED else True
+    mcp_ok, mcp_detail = (process.wait_mcp_initialize(MCP_PORT, AUTH_TOKEN)
+                          if MCP_ENABLED else (True, "disabled"))
     print(f"REST http://127.0.0.1:{PORT}: {'OK' if rest_ok else 'NOT RESPONDING'}")
     if MCP_ENABLED:
         print(f"MCP  http://127.0.0.1:{MCP_PORT}/mcp: {'OK' if mcp_ok else 'NOT RESPONDING'}")
-    if not rest_ok:
+        print(f"MCP initialize: {'OK' if mcp_ok else 'FAIL'} — {mcp_detail}")
+    if not rest_ok or not mcp_ok:
         print("Server did not become healthy. Check 'termux-mcp logs'.")
+        if process.is_running():
+            process.stop_server()
         return 1
 
     # E/F/G/H. Tunnel.
@@ -220,7 +224,9 @@ def cmd_stop() -> int:
     clear_public_url()
     if process.is_running():
         pid = process.read_pid()
-        process.stop_server()
+        if not process.stop_server():
+            print(f"ERROR: server pid {pid} did not stop.")
+            return 1
         print(f"Server stopped (pid {pid})")
     else:
         process.clear_pid()
@@ -250,7 +256,9 @@ def cmd_restart(args: argparse.Namespace) -> int:
     # 1. Stop the server only — never touch the tunnel unless asked.
     if process.is_running():
         pid = process.read_pid()
-        process.stop_server()
+        if not process.stop_server():
+            print(f"ERROR: server pid {pid} did not stop; restart aborted.")
+            return 1
         print(f"Server stopped (pid {pid})")
     else:
         process.clear_pid()
@@ -305,8 +313,11 @@ def cmd_status() -> int:
         mcp_listening = process.port_open(MCP_PORT)
         print(f"MCP port {MCP_PORT}: {'LISTENING' if mcp_listening else 'DOWN'}")
         if mcp_listening:
-            mcp_ok, mcp_detail = process.mcp_initialize_probe(MCP_PORT, AUTH_TOKEN, timeout=3)
-            print(f"MCP initialize: {'OK' if mcp_ok else 'FAIL'} — {mcp_detail}")
+            if os.getenv("TERMUX_MCP_TOOL_CONTEXT") == "1":
+                print("MCP initialize: SKIPPED — current command is running inside MCP")
+            else:
+                mcp_ok, mcp_detail = process.mcp_initialize_probe(MCP_PORT, AUTH_TOKEN, timeout=3)
+                print(f"MCP initialize: {'OK' if mcp_ok else 'FAIL'} — {mcp_detail}")
     print(f"Auth: {'enabled' if token_configured() else 'DISABLED'}")
     from . import config
     print(f"Client: {config.CLIENT_TARGET}")
@@ -571,8 +582,12 @@ def cmd_doctor(json_output: bool = False) -> int:
 
     # Localhost MCP protocol health: a real authenticated initialize request.
     if MCP_ENABLED and process.port_open(MCP_PORT):
-        mcp_ok, mcp_detail = process.mcp_initialize_probe(MCP_PORT, AUTH_TOKEN, timeout=5)
-        _check(checks, "mcp_health", "MCP initialize", mcp_ok, mcp_detail, emit=emit)
+        if os.getenv("TERMUX_MCP_TOOL_CONTEXT") == "1":
+            _check(checks, "mcp_health", "MCP initialize", True,
+                   "skipped inside MCP tool context", warn=True, emit=emit)
+        else:
+            mcp_ok, mcp_detail = process.mcp_initialize_probe(MCP_PORT, AUTH_TOKEN, timeout=5)
+            _check(checks, "mcp_health", "MCP initialize", mcp_ok, mcp_detail, emit=emit)
     else:
         _check(checks, "mcp_health", "MCP initialize", False,
                "MCP port not listening", warn=True, emit=emit)

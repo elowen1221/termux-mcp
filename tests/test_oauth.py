@@ -194,8 +194,10 @@ def test_401_challenge_includes_resource_metadata(oauth_config):
         _stop_server(server, thread)
 
 
-def test_no_oauth_discovery_when_disabled():
-    # OAuth disabled (default config): plain Bearer challenge, no discovery.
+def test_no_oauth_discovery_when_disabled(monkeypatch):
+    # Keep this test hermetic even when the developer's local profile enables OAuth.
+    monkeypatch.setattr(config, "OAUTH_ISSUER", "")
+    reset_auth_provider()
     app = _build_mcp_app()
     server, thread, base = _start_server(app)
     try:

@@ -40,7 +40,11 @@ def run() -> None:
         sys.exit(1)
 
     logger.info("Freeing port %d if occupied...", PORT)
-    kill_port(PORT)
+    try:
+        kill_port(PORT)
+    except TimeoutError as exc:
+        logger.error("Cannot start REST server: %s", exc)
+        sys.exit(1)
 
     server = ThreadingHTTPServer((HOST, PORT), MCPHandler)
 

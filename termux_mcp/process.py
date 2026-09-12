@@ -268,10 +268,14 @@ def port_open(port: int, host: str = "127.0.0.1", timeout: float = 1.0) -> bool:
 
 
 def mcp_initialize_probe(port: int, token: str = "", timeout: float = 5.0) -> tuple[bool, str]:
-    """Perform a real MCP initialize request, not merely a TCP port probe."""
+    """Perform a real local MCP initialize request without proxy handling.
+
+    urllib inherits HTTP(S)_PROXY environment variables, which is undesirable
+    for a loopback health check and can make a healthy local MCP endpoint look
+    timed out.  http.client talks directly to 127.0.0.1.
+    """
+    import http.client
     import json
-    import urllib.error
-    import urllib.request
 
     payload = json.dumps({
         "jsonrpc": "2.0",
@@ -286,26 +290,40 @@ def mcp_initialize_probe(port: int, token: str = "", timeout: float = 5.0) -> tu
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
+        "Content-Length": str(len(payload)),
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    req = urllib.request.Request(
-        f"http://127.0.0.1:{port}/mcp", data=payload, method="POST", headers=headers
-    )
+
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            body = response.read(65536).decode("utf-8", errors="replace")
-            if response.status != 200:
-                return False, f"HTTP {response.status}"
-            parsed = json.loads(body)
-            result = parsed.get("result", {}) if isinstance(parsed, dict) else {}
-            if not result.get("protocolVersion"):
-                return False, "HTTP 200 but initialize result missing"
-            return True, f"initialize OK ({result['protocolVersion']})"
-    except urllib.error.HTTPError as exc:
-        return False, f"HTTP {exc.code}"
+        conn.request("POST", "/mcp", body=payload, headers=headers)
+        response = conn.getresponse()
+        body = response.read(65536).decode("utf-8", errors="replace")
+        if response.status != 200:
+            return False, f"HTTP {response.status}"
+        parsed = json.loads(body)
+        result = parsed.get("result", {}) if isinstance(parsed, dict) else {}
+        if not result.get("protocolVersion"):
+            return False, "HTTP 200 but initialize result missing"
+        return True, f"initialize OK ({result['protocolVersion']})"
     except Exception as exc:
         return False, str(exc)
+    finally:
+        conn.close()
+
+
+def wait_mcp_initialize(port: int, token: str = "", timeout: float = 15.0) -> tuple[bool, str]:
+    """Wait until MCP initialize succeeds, bounded by a hard deadline."""
+    deadline = time.monotonic() + timeout
+    detail = "not attempted"
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        ok, detail = mcp_initialize_probe(port, token, timeout=min(2.0, max(0.2, remaining)))
+        if ok:
+            return True, detail
+        time.sleep(min(0.3, max(0.05, deadline - time.monotonic())))
+    return False, detail
 
 
 def wait_http(port: int, timeout: float = 15.0) -> bool:

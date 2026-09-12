@@ -439,3 +439,30 @@ def test_invalid_numeric_config_is_rejected(name, value):
     )
     assert result.returncode != 0
     assert f"Invalid {name}" in result.stderr
+
+
+def test_restart_aborts_when_server_will_not_stop(monkeypatch, capsys):
+    monkeypatch.setattr(process, "is_running", lambda: True)
+    monkeypatch.setattr(process, "read_pid", lambda: 4444)
+    monkeypatch.setattr(process, "stop_server", lambda timeout=10.0: False)
+    called = {"start": 0}
+    monkeypatch.setattr(cli, "cmd_start", lambda args: called.__setitem__("start", called["start"] + 1) or 0)
+
+    rc = cli.cmd_restart(cli._parse_args(["restart"]))
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "restart aborted" in out
+    assert called["start"] == 0
+
+
+def test_status_skips_recursive_initialize_inside_tool_context(isolated_state, monkeypatch, capsys):
+    monkeypatch.setenv("TERMUX_MCP_TOOL_CONTEXT", "1")
+    monkeypatch.setattr(process, "is_running", lambda: True)
+    monkeypatch.setattr(process, "read_pid", lambda: 123)
+    monkeypatch.setattr(process, "port_open", lambda port: True)
+    monkeypatch.setattr(process, "tunnel_is_running", lambda: False)
+    monkeypatch.setattr(process, "mcp_initialize_probe", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not recurse")))
+    rc = cli.cmd_status()
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "MCP initialize: SKIPPED" in out
