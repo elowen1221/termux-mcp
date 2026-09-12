@@ -35,7 +35,8 @@ def run_guide(output: TextIO | None=None) -> int:
         print("\n下一步："+("把上面的 /mcp 地址添加到你的 AI 客户端。" if runtime else "运行 termux-mcp start，让我帮你打开免费连接。"),file=output)
     elif mode=="domain":
         print(f"  自有域名：{value or '还没填写'}",file=output)
-        print("\n下一步：域名只是记住了，还需要完成 Named Tunnel / DNS 配置。",file=output)
+        print("\n下一步：运行 termux-mcp domain guide",file=output)
+        print("它会检查 cloudflared / 登录 / Named Tunnel / 配置文件，并且每次只告诉你下一步。",file=output)
         print("在确认 DNS 改动前，Termux-MCP 不会擅自修改你的域名。",file=output)
     elif mode=="external":
         url=(value.rstrip('/')+'/mcp') if value else '还没填写'

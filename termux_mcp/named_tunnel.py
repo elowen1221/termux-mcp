@@ -261,3 +261,33 @@ def route_dns(
     assert last is not None
     detail = (last.stderr or last.stdout).strip()
     raise RuntimeError(f"Cloudflare DNS route failed after {retries} attempts: {detail}")
+
+
+def inspect_cloudflare(runner: Callable[..., subprocess.CompletedProcess] = subprocess.run) -> dict:
+    """Return side-effect-free readiness information for the beginner domain guide."""
+    installed = shutil.which("cloudflared") is not None
+    cert = Path(os.path.expanduser("~/.cloudflared/cert.pem"))
+    config = Path(DEFAULT_CONFIG)
+    result = {
+        "installed": installed,
+        "authenticated": cert.is_file(),
+        "config_exists": config.is_file(),
+        "tunnels": [],
+    }
+    if not installed or not cert.is_file():
+        return result
+    try:
+        proc = runner(
+            ["cloudflared", "tunnel", "list", "--output", "json"],
+            text=True, capture_output=True, timeout=20, check=False,
+        )
+        if proc.returncode == 0:
+            import json
+            payload = json.loads(proc.stdout or "[]")
+            result["tunnels"] = [
+                {"id": str(item.get("id", "")), "name": str(item.get("name", ""))}
+                for item in payload if item.get("id") or item.get("name")
+            ]
+    except (OSError, ValueError):
+        pass
+    return result

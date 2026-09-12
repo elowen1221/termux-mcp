@@ -186,6 +186,9 @@ echo "=================================================="
 echo " 安装完成！( Ꙭ)"
 echo "=================================================="
 echo ""
+echo "想截图保存常用命令：termux-mcp guide"
+echo "出问题先自检：termux-mcp doctor"
+echo ""
 if [ "$FIRST_INSTALL" -eq 0 ]; then
   echo "已有配置保持不变。运行 termux-mcp status 查看状态。"
 fi

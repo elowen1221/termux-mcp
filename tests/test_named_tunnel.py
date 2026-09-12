@@ -169,3 +169,19 @@ def test_plan_domain_migration_requires_source_for_mixed_domains(tmp_path):
     )
     with pytest.raises(ValueError, match="--from-domain"):
         named_tunnel.plan_domain_migration("next.example", path=str(cfg))
+
+def test_inspect_cloudflare_is_side_effect_free(monkeypatch, tmp_path):
+    cert = tmp_path / ".cloudflared" / "cert.pem"
+    cert.parent.mkdir(); cert.write_text("x")
+    cfg = cert.parent / "config.yml"; cfg.write_text("tunnel: abc\n")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(named_tunnel.shutil, "which", lambda name: "/bin/cloudflared")
+    monkeypatch.setattr(named_tunnel, "DEFAULT_CONFIG", str(cfg))
+    def runner(*args, **kwargs):
+        assert args[0] == ["cloudflared", "tunnel", "list", "--output", "json"]
+        return SimpleNamespace(returncode=0, stdout='[{"id":"abc","name":"termux-mcp"}]', stderr="")
+    state = named_tunnel.inspect_cloudflare(runner=runner)
+    assert state["installed"] is True
+    assert state["authenticated"] is True
+    assert state["config_exists"] is True
+    assert state["tunnels"] == [{"id":"abc","name":"termux-mcp"}]

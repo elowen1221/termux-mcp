@@ -2,37 +2,63 @@
 
 > **Fork & thanks**: This project is built on [termuxgpt/termux-mcp](https://github.com/termuxgpt/termux-mcp), the original upstream project. Many core ideas and the original REST/device-control foundation come from its authors and contributors. Thank you for making the project open source. This fork remains AGPL-3.0, preserves upstream attribution, and focuses on a friendlier Agent/MCP gateway, onboarding, permissions, managed MCPs, workflows, OAuth, tunnels, and operational safety.
 
-## 新用户先看这里：从“手机里还没有 Termux”开始
+## 第一次来？从这里开始 ( Ꙭ)
 
-### 0. 你需要什么
+你不需要先学 Linux、Python、端口或 MCP。第一次使用只做四件事：
 
-- 一台 Android 手机。
-- **Termux 应用**。如果你还没有 Termux，请先从 [F-Droid 的 Termux 页面](https://f-droid.org/packages/com.termux/) 或 [Termux 官方 GitHub Releases](https://github.com/termux/termux-app/releases) 安装。不要混装来自不同来源的 Termux 与 Termux 插件。
-- 普通功能不要求 root。需要电池、通知、定位等 Android 能力时，再安装与 Termux **同一来源**的 Termux:API 应用，并在 Termux 中运行 `pkg install -y termux-api`。
-- 能访问 GitHub/Python 包源的网络。
-
-> 不熟悉 APK/F-Droid？优先选 F-Droid，安装 Termux 后打开它，等黑色终端出现 `$` 提示符，再回来继续。
-
-### 1. 推荐：复制一条命令
-
-在 **Termux 黑色终端里**粘贴下面这一条。它会自己安装 Git、下载本仓库，再进入项目安装器；安装器会准备 Python/SSH、生成本地密钥配置并运行自检：
+1. 在 Android 上安装 **Termux**（推荐 [F-Droid](https://f-droid.org/packages/com.termux/)；也可以用 [Termux 官方 GitHub Releases](https://github.com/termux/termux-app/releases)）。
+2. 打开 Termux，等黑色窗口里出现 `$`。
+3. 复制下面 **这一条命令**，粘贴后按回车：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/elowen1221/termux-mcp/main/scripts/bootstrap.sh | bash
 ```
 
-第一次安装会进入引导：选择客户端与权限级别，然后启动服务并给出连接信息。建议新用户先用 `standard`；`full` 是受信任 Agent 模式，会跳过命令风险确认。
+4. 后面跟着 `( Ꙭ)` 新手向导选就好。**不知道选什么就一路按 Enter**：默认是 ChatGPT + 日常权限 + 免费公网地址。
 
-安装后先运行 `termux-mcp doctor`。如果全部关键项通过，再连接你的 MCP 客户端。希望逐步检查每条命令，可以继续阅读下面的零基础教程。
+安装器会自己准备 Git/Python/SSH、下载项目、安装依赖、生成本机密钥、运行自检并进入首次连接向导。普通功能不要求 root。需要通知、电池、定位等 Android 能力时，再安装与 Termux **同一来源**的 Termux:API。
+
+### 先截一张“救命小抄”
+
+安装完成后随时运行：
+
+```bash
+termux-mcp guide
+```
+
+它会根据你现在的连接方式显示下一步，并把最常用的命令排成适合截图的样子。真正需要记住的只有这些：
+
+```text
+termux-mcp status    看 MCP / tunnel 还活着没有
+termux-mcp url       看现在应该填给 AI 的 MCP 地址
+termux-mcp guide     忘记下一步时重新叫出新手小抄
+termux-mcp doctor    出问题先自检，不要急着重装
+termux-mcp restart   普通重启尽量保留现有免费 tunnel URL
+```
+
+> **不要截图或分享 `termux-mcp token --show` 的输出。** token 相当于设备访问密钥；只有客户端明确要求 Bearer token 时才在自己的手机上查看。
+
+### 向导会问什么？
+
+首次安装只有三类选择：
+
+- **AI 客户端**：ChatGPT（默认）/ Claude / Grok。
+- **权限**：🌿 日常活动（默认）/ 🌱 只看看 / 🌳 完全开放。
+- **AI 怎么找到手机**：
+  1. 免费地址（默认，不需要域名；重建 tunnel 后地址可能变化）；
+  2. 自己的域名（例如 `termux.example.com`，向导会保存目标地址，但不会未经确认修改 DNS）；
+  3. 已有公网入口（VPS / 反代 / 其他 HTTPS 地址）；
+  4. 暂时只在手机本机使用。
+
+自有域名模式和免费地址是两条不同路线：**基础使用完全不要求购买域名**。如果你有自己的域名，可以后续使用 Cloudflare Named Tunnel 配成固定地址。
 
 ## Changes in this fork
 
 This fork adds a minimal, standards-compliant **MCP (Model Context Protocol)** layer without removing the existing REST API:
 
 - **MCP Streamable HTTP endpoint** at `/mcp` (port `8765` by default), built on the official `mcp` Python SDK (`mcp>=1.28,<2`) + `uvicorn`.
-- **26 MCP tools**: shell/files/device tools, permission visibility, Inbox/Board helpers, managed-MCP lifecycle (`mcp_install`, `mcp_list`, `mcp_search`, `mcp_inspect`, `mcp_health`, `mcp_call`, `mcp_remove`), and bounded multi-step workflows (`run_steps`).
-- **One-time friendly onboarding**: `termux-mcp setup` asks only for the target AI
-  and permission level, starts the gateway, then prints one copy-ready URL.
+- **Public core MCP tools** for shell/files/device access, permission visibility, managed-MCP lifecycle and bounded workflows; private device-specific extensions can be mounted locally without being committed to this repository.
+- **Beginner-first onboarding**: `termux-mcp setup` guides the target AI, permission level, and one of four connection routes (free URL / own domain / existing HTTPS entry / local only). `termux-mcp guide` is a screenshot-friendly, state-aware pocket guide for returning users.
 - **Owner-selected permissions**: `read-only`, `standard`, or `full`; full mode is
   an explicit choice that lets the attached AI use Termux without repeated risk prompts.
 - **MCP compatibility layer**: import an existing remote MCP URL, or clone and
@@ -244,6 +270,8 @@ termux-mcp restart
 | `termux-mcp start` | 启动服务器 + 自动隧道，打印 MCP URL |
 | `termux-mcp start --no-tunnel` | 只启动本地服务器 |
 | `termux-mcp start --tunnel cloudflare` | 指定隧道启动 |
+| `termux-mcp guide` | 打开适合截图的新手小抄，并根据当前状态提示下一步 |
+| `termux-mcp domain guide` | 自有域名路线检查：cloudflared / 登录 / Named Tunnel / config / 下一步 |
 | `termux-mcp domain list` | 查看 Cloudflare 命名 Tunnel 的固定域名路由 |
 | `termux-mcp domain add mcp.example.com --port 8765 --tunnel my-tunnel` | 备份并校验配置后添加固定子域名，DNS 失败会自动重试 |
 | `termux-mcp stop` | 停止服务器和隧道 |
@@ -259,6 +287,34 @@ termux-mcp restart
 | `termux-mcp permissions set full` | 将权限切换为完全控制（重启生效） |
 | `termux-mcp token --show` | 显示 token |
 | `termux-mcp token --rotate` | 更换 token |
+
+## 自有域名：固定 MCP 地址
+
+如果你在首次向导里选择了“我有自己的域名”，先运行：
+
+```bash
+termux-mcp domain guide
+```
+
+它**只检查、不改 DNS**，会根据当前状态一次只告诉你一个动作：安装 `cloudflared` → Cloudflare 登录 → 创建 Named Tunnel → 准备配置 → 最后才给出真正添加 ingress / DNS 的命令。这样不会因为复制一长串命令把已有 Cloudflare 配置弄乱。
+
+如果这是全新 Cloudflare Tunnel，最小的 `~/.cloudflared/config.yml` 结构如下（把 `<TUNNEL-ID>` 和凭据路径换成 `cloudflared tunnel create termux-mcp` 实际生成的值）：
+
+```yaml
+tunnel: <TUNNEL-ID>
+credentials-file: /data/data/com.termux/files/home/.cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  - service: http_status:404
+```
+
+然后再次运行 `termux-mcp domain guide`。当基础条件齐全后，它会打印类似：
+
+```bash
+termux-mcp domain add termux.example.com --port 8765 --tunnel termux-mcp
+```
+
+这个最终命令才会修改 ingress / 创建 Cloudflare DNS route；修改前会备份配置，并调用 `cloudflared tunnel ingress validate` 校验。项目不会使用维护者的私人域名作为公共 relay。
 
 # 配置
 

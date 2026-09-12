@@ -118,6 +118,8 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     p_domain = sub.add_parser("domain", help="Manage Cloudflare named-tunnel routes")
     domain_sub = p_domain.add_subparsers(dest="domain_command", required=True)
+    p_domain_guide = domain_sub.add_parser("guide", help="Show the safe next step for an own-domain setup")
+    p_domain_guide.add_argument("hostname", nargs="?", default=None)
     p_domain_list = domain_sub.add_parser("list", help="List configured ingress routes")
     p_domain_list.add_argument("--config", default=None)
     p_domain_add = domain_sub.add_parser("add", help="Add and validate an ingress route")
@@ -461,8 +463,39 @@ def cmd_permissions(args: argparse.Namespace) -> int:
 def cmd_domain(args: argparse.Namespace) -> int:
     from . import named_tunnel
 
-    path = args.config or named_tunnel.DEFAULT_CONFIG
+    path = getattr(args, "config", None) or named_tunnel.DEFAULT_CONFIG
     try:
+        if args.domain_command == "guide":
+            hostname = args.hostname or config.CONNECTION_VALUE
+            state = named_tunnel.inspect_cloudflare()
+            print("\n( Ꙭ) 自有域名检查")
+            print(f"  cloudflared：{'✓ 已安装' if state['installed'] else '○ 未安装'}")
+            print(f"  Cloudflare 授权：{'✓ 已登录' if state['authenticated'] else '○ 还没登录'}")
+            print(f"  Named Tunnel：{len(state['tunnels'])} 个")
+            print(f"  配置文件：{'✓ 已存在' if state['config_exists'] else '○ 还没有'}")
+            if hostname:
+                print(f"  目标地址：https://{hostname}/mcp")
+            if not state['installed']:
+                print("\n下一步只做这一件事：pkg install -y cloudflared")
+            elif not state['authenticated']:
+                print("\n下一步只做这一件事：cloudflared tunnel login")
+                print("浏览器授权完成后，再运行 termux-mcp domain guide。")
+            elif not state['tunnels']:
+                print("\n下一步只做这一件事：cloudflared tunnel create termux-mcp")
+                print("创建完成后，再运行 termux-mcp domain guide。")
+            elif not state['config_exists']:
+                chosen = state['tunnels'][0]['name'] or state['tunnels'][0]['id']
+                print(f"\n已经找到 Tunnel：{chosen}")
+                print("还缺 ~/.cloudflared/config.yml；为了避免覆盖你的现有设置，向导不会静默创建。")
+                print("README 的“自有域名”章节给了最小模板。")
+            elif hostname:
+                chosen = state['tunnels'][0]['name'] or state['tunnels'][0]['id']
+                print("\n基础条件都齐啦。真正修改 ingress / DNS 前需要你明确执行：")
+                print(f"  termux-mcp domain add {hostname} --port {config.MCP_PORT} --tunnel {chosen}")
+                print("这个命令会先备份并校验配置，再创建 DNS route。")
+            else:
+                print("\n还缺目标域名。先运行 termux-mcp setup --force 选择‘我有自己的域名’。")
+            return 0
         if args.domain_command == "list":
             rules = named_tunnel.list_ingress(path)
             if not rules:
