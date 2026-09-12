@@ -3,7 +3,7 @@
 The stable relay gives users a permanent MCP URL without asking them to buy a domain or create a Cloudflare Tunnel.
 
 ```
-ChatGPT -> https://relay.walnutnest.buzz/d/<device-id>/mcp
+ChatGPT -> https://relay.example.com/d/<device-id>/mcp
         -> Cloudflare Worker / Durable Object
         -> outbound WebSocket already opened by Termux
         -> http://127.0.0.1:8765/mcp
@@ -25,12 +25,12 @@ npm install
 npx wrangler deploy
 ```
 
-Then bind `relay.walnutnest.buzz/*` to the Worker in Cloudflare (or change `TERMUX_MCP_RELAY_BASE`). After the public relay is deployed and `/health` answers, `relay` can become the default first-run provider.
+Then bind `relay.example.com/*` to the Worker in Cloudflare (or change `TERMUX_MCP_RELAY_BASE`). The open-source project does not provide a maintainer-hosted relay; operators own their relay hostname and infrastructure.
 
 ## Client
 
 ```
-termux-mcp start --tunnel relay
+TERMUX_MCP_RELAY_BASE=https://relay.example.com termux-mcp start --tunnel relay
 ```
 
 The generated URL survives MCP restarts, Termux restarts, and phone reboots as long as the config directory is preserved. Reinstall/migration recovery should restore the relay device id + secret together; a later release will expose a user-friendly recovery code rather than asking users to copy secrets.

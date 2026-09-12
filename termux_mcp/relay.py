@@ -1,6 +1,6 @@
 """Zero-config stable relay client for Termux-MCP.
 
-A device keeps one outbound WebSocket to the project relay. Incoming HTTP MCP
+A device keeps one outbound WebSocket to a user-configured self-hosted relay. Incoming HTTP MCP
 requests are delivered as small JSON envelopes and proxied to the local MCP
 endpoint. The public URL is stable because it is derived from a persistent,
 random device id rather than an anonymous tunnel hostname.
@@ -18,7 +18,7 @@ from typing import Any
 
 from . import config
 
-DEFAULT_RELAY_BASE = "https://relay.walnutnest.buzz"
+DEFAULT_RELAY_BASE = ""
 RELAY_BASE = os.environ.get("TERMUX_MCP_RELAY_BASE", DEFAULT_RELAY_BASE).rstrip("/")
 
 
@@ -44,14 +44,24 @@ def ensure_identity() -> tuple[str, str]:
     return device_id, secret
 
 
+def _require_relay_base() -> str:
+    if not RELAY_BASE:
+        raise RuntimeError("relay mode is self-hosted; set TERMUX_MCP_RELAY_BASE to your relay URL")
+    if not (RELAY_BASE.startswith("https://") or RELAY_BASE.startswith("http://")):
+        raise RuntimeError("TERMUX_MCP_RELAY_BASE must start with https:// or http://")
+    return RELAY_BASE
+
+
 def public_url(device_id: str | None = None) -> str:
+    base = _require_relay_base()
     device_id = device_id or ensure_identity()[0]
-    return f"{RELAY_BASE}/d/{device_id}"
+    return f"{base}/d/{device_id}"
 
 
 def websocket_url(device_id: str, secret: str) -> str:
-    scheme = "wss" if RELAY_BASE.startswith("https://") else "ws"
-    host = RELAY_BASE.split("://", 1)[-1]
+    base = _require_relay_base()
+    scheme = "wss" if base.startswith("https://") else "ws"
+    host = base.split("://", 1)[-1]
     return f"{scheme}://{host}/connect/{device_id}"
 
 

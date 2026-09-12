@@ -4,7 +4,7 @@ Supported providers (order is configurable via TERMUX_MCP_TUNNEL_PROVIDERS):
   * pinggy        — `ssh -p 443 -R0:localhost:<port> a@free.pinggy.io`
   * cloudflare    — `cloudflared tunnel --url http://127.0.0.1:<port>`
   * localhost-run — `ssh -R 80:localhost:<port> nokey@localhost.run`
-  * relay         — stable project relay URL; no personal domain required
+  * relay         — stable self-hosted relay URL; configure TERMUX_MCP_RELAY_BASE
 
 `start_tunnel(port, "auto")` tries each available provider in order, gives
 each a bounded timeout, terminates a provider that hangs, and returns the

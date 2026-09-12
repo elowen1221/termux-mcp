@@ -28,3 +28,13 @@ def test_relay_url_validation(monkeypatch):
 
 def test_relay_provider_registered():
     assert isinstance(tunnel.get_provider("relay"), tunnel.RelayProvider)
+
+
+def test_relay_requires_explicit_base(monkeypatch):
+    monkeypatch.setattr(relay, "RELAY_BASE", "")
+    try:
+        relay.public_url("device-abcdefghijkl")
+    except RuntimeError as exc:
+        assert "self-hosted" in str(exc)
+    else:
+        raise AssertionError("relay must not silently use maintainer infrastructure")
