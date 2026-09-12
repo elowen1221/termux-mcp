@@ -461,7 +461,7 @@ def cmd_permissions(args: argparse.Namespace) -> int:
 # ── Named domains ────────────────────────────────────────────────────────────
 
 def cmd_domain(args: argparse.Namespace) -> int:
-    from . import named_tunnel
+    from . import config, named_tunnel
 
     path = getattr(args, "config", None) or named_tunnel.DEFAULT_CONFIG
     try:
