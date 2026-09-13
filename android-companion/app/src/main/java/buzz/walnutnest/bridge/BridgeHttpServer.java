@@ -25,13 +25,15 @@ final class BridgeHttpServer {
     BridgeHttpServer(Context context) { this.context = context.getApplicationContext(); }
     void start() {
         if (running) return;
-        running = true;
+        running = true; BridgeState.mark(context, "starting", null);
         pool.execute(() -> {
             try {
                 socket = new ServerSocket();
-                socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), PORT));
+                socket.setReuseAddress(true);
+                socket.bind(new InetSocketAddress("127.0.0.1", PORT));
+                BridgeState.mark(context, "listening on 127.0.0.1:" + PORT, null);
                 while (running) pool.execute(new Client(socket.accept()));
-            } catch (IOException ignored) { running = false; }
+            } catch (Throwable error) { running = false; BridgeState.mark(context, "server failed", error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage())); }
         });
     }
     void stop() { running = false; try { if (socket != null) socket.close(); } catch (IOException ignored) {} pool.shutdownNow(); }
