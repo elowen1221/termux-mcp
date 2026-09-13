@@ -8,6 +8,8 @@ import android.os.Bundle;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayList;
@@ -52,19 +54,50 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         for(int i=0;i<node.getChildCount();i++) collectExactMatches(node.getChild(i),text,out,depth+1);
     }
 
-    public boolean clickText(String text){
-        for(AccessibilityNodeInfo node:findText(text)){
+    public JSONObject clickTextDetailed(String text){
+        JSONObject result=new JSONObject();
+        try{ result.put("query",text); }catch(Exception ignored){}
+        List<AccessibilityNodeInfo> matches=findText(text);
+        try{ result.put("match_count",matches.size()); }catch(Exception ignored){}
+        for(AccessibilityNodeInfo node:matches){
+            Rect nodeBounds=new Rect();
+            node.getBoundsInScreen(nodeBounds);
+            try{
+                result.put("matched_text",String.valueOf(node.getText()));
+                result.put("matched_desc",String.valueOf(node.getContentDescription()));
+                result.put("matched_class",String.valueOf(node.getClassName()));
+                result.put("matched_bounds",new JSONArray(new int[]{nodeBounds.left,nodeBounds.top,nodeBounds.right,nodeBounds.bottom}));
+            }catch(Exception ignored){}
+
             AccessibilityNodeInfo current=node;
             while(current!=null){
-                if(current.isClickable() && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+                if(current.isClickable()) {
+                    Rect targetBounds=new Rect(); current.getBoundsInScreen(targetBounds);
+                    boolean ok=current.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    try{
+                        result.put("strategy","action_click");
+                        result.put("target_bounds",new JSONArray(new int[]{targetBounds.left,targetBounds.top,targetBounds.right,targetBounds.bottom}));
+                        result.put("success",ok);
+                    }catch(Exception ignored){}
+                    if(ok) return result;
+                }
                 current=current.getParent();
             }
-            Rect bounds=new Rect();
-            node.getBoundsInScreen(bounds);
-            if(!bounds.isEmpty() && tap(bounds.exactCenterX(),bounds.exactCenterY())) return true;
+            if(!nodeBounds.isEmpty()) {
+                boolean ok=tap(nodeBounds.exactCenterX(),nodeBounds.exactCenterY());
+                try{
+                    result.put("strategy","gesture_center");
+                    result.put("target_bounds",new JSONArray(new int[]{nodeBounds.left,nodeBounds.top,nodeBounds.right,nodeBounds.bottom}));
+                    result.put("success",ok);
+                }catch(Exception ignored){}
+                if(ok) return result;
+            }
         }
-        return false;
+        try{ if(!result.has("success")) result.put("success",false); }catch(Exception ignored){}
+        return result;
     }
+
+    public boolean clickText(String text){ return clickTextDetailed(text).optBoolean("success",false); }
 
     public boolean tap(float x,float y){
         Path path=new Path();
