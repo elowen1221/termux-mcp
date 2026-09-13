@@ -191,6 +191,16 @@ def tool_android_click(text: str) -> dict:
     if not permissions.allows("device.write"): return permissions.denied("device.write")
     return android_bridge.click(text)
 
+def tool_android_tap(x: float, y: float) -> dict:
+    """Tap absolute screen coordinates through AccessibilityService."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.tap(x, y)
+
+def tool_android_click_verify(text: str, expect_text: str, timeout_ms: int = 2000) -> dict:
+    """Click visible text and verify that expected text appears afterwards."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.click_and_verify(text, expect_text, timeout_ms)
+
 def tool_android_type(text: str) -> dict:
     """Replace text in the currently focused editable Android node."""
     if not permissions.allows("device.write"): return permissions.denied("device.write")
@@ -276,6 +286,8 @@ _STEP_TOOLS = {
     "android_current_ui": tool_android_current_ui,
     "android_screenshot": tool_android_screenshot,
     "android_click": tool_android_click,
+    "android_tap": tool_android_tap,
+    "android_click_verify": tool_android_click_verify,
     "android_type": tool_android_type,
     "android_swipe": tool_android_swipe,
     "android_back": tool_android_back,
@@ -358,6 +370,8 @@ def _build_mcp_app():
     mcp.tool(name="android_current_ui")(tool_android_current_ui)
     mcp.tool(name="android_screenshot")(tool_android_screenshot)
     mcp.tool(name="android_click")(tool_android_click)
+    mcp.tool(name="android_tap")(tool_android_tap)
+    mcp.tool(name="android_click_verify")(tool_android_click_verify)
     mcp.tool(name="android_type")(tool_android_type)
     mcp.tool(name="android_swipe")(tool_android_swipe)
     mcp.tool(name="android_back")(tool_android_back)

@@ -34,3 +34,17 @@ def test_open_app_accepts_human_name_via_companion(monkeypatch):
     data = android_bridge.open_app("小红书")
     assert data["opened"] is True
     assert data["package"] == "com.xingin.xhs"
+
+
+def test_tap_uses_accessibility(monkeypatch):
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": payload} if path == "/v1/tap" else None)
+    data = android_bridge.tap(12.5, 99.0)
+    assert data["ok"] is True
+    assert data["data"] == {"x": 12.5, "y": 99.0}
+
+def test_click_and_verify(monkeypatch):
+    monkeypatch.setattr(android_bridge, "click", lambda text: {"ok": True, "data": {"query": text}})
+    monkeypatch.setattr(android_bridge, "current_ui", lambda max_depth=8: {"ok": True, "data": {"text": "Result 15"}})
+    data = android_bridge.click_and_verify("=", "15", 300)
+    assert data["ok"] is True
+    assert data["verified"] is True

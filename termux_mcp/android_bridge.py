@@ -7,6 +7,7 @@ package/activity operations once the device owner has configured Shizuku.
 from __future__ import annotations
 
 import re
+import time
 import base64
 import os
 from pathlib import Path
@@ -78,6 +79,24 @@ def screenshot_png() -> bytes | None:
 def click(text: str) -> dict:
     data = _accessibility("/v1/click", {"text": text})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def tap(x: float, y: float) -> dict:
+    data = _accessibility("/v1/tap", {"x": x, "y": y})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def click_and_verify(text: str, expect_text: str, timeout_ms: int = 2000) -> dict:
+    action = click(text)
+    if not action.get("ok"):
+        return {"ok": False, "action": action, "verified": False}
+    deadline = time.monotonic() + max(100, min(timeout_ms, 10000)) / 1000.0
+    last_ui = None
+    needle = expect_text.casefold()
+    while time.monotonic() < deadline:
+        last_ui = current_ui(8)
+        if needle and needle in json.dumps(last_ui, ensure_ascii=False).casefold():
+            return {"ok": True, "action": action, "verified": True, "expect_text": expect_text}
+        time.sleep(0.15)
+    return {"ok": True, "action": action, "verified": False, "expect_text": expect_text, "ui": last_ui}
 
 def type_text(text: str) -> dict:
     data = _accessibility("/v1/type", {"text": text})

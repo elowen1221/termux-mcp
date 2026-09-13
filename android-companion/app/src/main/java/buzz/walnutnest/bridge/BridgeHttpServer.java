@@ -77,6 +77,9 @@ final class BridgeHttpServer {
                     if(text.isEmpty()||service==null){respond(out,404,json(false,"node not found or not clickable"));return;}
                     JSONObject click=service.clickTextDetailed(text); boolean ok=click.optBoolean("success",false);
                     respond(out,ok?200:404,envelope(ok,ok?null:"node not found or not clickable",click));
+                } else if (path.equals("/v1/tap")) {
+                    boolean ok=service!=null&&service.tap((float)body.optDouble("x"),(float)body.optDouble("y"));
+                    respond(out,ok?200:409,json(ok,ok?null:"tap unavailable"));
                 } else if (path.equals("/v1/type")) {
                     boolean ok=service!=null&&service.setFocusedText(body.optString("text","")); respond(out,ok?200:409,json(ok,ok?null:"focused editable node unavailable"));
                 } else if (path.equals("/v1/swipe")) {
