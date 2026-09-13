@@ -60,6 +60,60 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         for(int i=0;i<node.getChildCount();i++) collectExactMatches(node.getChild(i),text,out,depth+1);
     }
 
+    public JSONObject currentContext(){
+        JSONObject out=new JSONObject();
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        try{
+            out.put("success",root!=null);
+            if(root!=null){
+                Rect r=new Rect(); root.getBoundsInScreen(r);
+                out.put("package",String.valueOf(root.getPackageName()));
+                out.put("class",String.valueOf(root.getClassName()));
+                out.put("bounds",new JSONArray(new int[]{r.left,r.top,r.right,r.bottom}));
+            }
+        }catch(Exception ignored){}
+        return out;
+    }
+
+    public JSONObject clickSelectorDetailed(String text,String viewId,String desc,int index){
+        JSONObject result=new JSONObject();
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        ArrayList<AccessibilityNodeInfo> matches=new ArrayList<>();
+        if(root!=null) collectSelectorMatches(root,text,viewId,desc,matches,0);
+        try{ result.put("match_count",matches.size()); result.put("index",index); }catch(Exception ignored){}
+        if(index<0 || index>=matches.size()){ try{result.put("success",false);}catch(Exception ignored){} return result; }
+        AccessibilityNodeInfo node=matches.get(index);
+        Rect nodeBounds=new Rect(); node.getBoundsInScreen(nodeBounds);
+        try{
+            result.put("matched_text",String.valueOf(node.getText()));
+            result.put("matched_desc",String.valueOf(node.getContentDescription()));
+            result.put("matched_id",node.getViewIdResourceName());
+            result.put("matched_bounds",new JSONArray(new int[]{nodeBounds.left,nodeBounds.top,nodeBounds.right,nodeBounds.bottom}));
+        }catch(Exception ignored){}
+        AccessibilityNodeInfo current=node;
+        while(current!=null){
+            if(current.isClickable()){
+                boolean ok=current.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                try{result.put("strategy","action_click");result.put("success",ok);}catch(Exception ignored){}
+                if(ok) return result;
+            }
+            current=current.getParent();
+        }
+        boolean ok=!nodeBounds.isEmpty() && tap(nodeBounds.exactCenterX(),nodeBounds.exactCenterY());
+        try{result.put("strategy","gesture_center");result.put("success",ok);}catch(Exception ignored){}
+        return result;
+    }
+
+    private void collectSelectorMatches(AccessibilityNodeInfo node,String text,String viewId,String desc,List<AccessibilityNodeInfo> out,int depth){
+        if(node==null || depth>40) return;
+        boolean any=false, ok=true;
+        if(text!=null && !text.isEmpty()){ any=true; CharSequence v=node.getText(); ok &= v!=null && text.contentEquals(v); }
+        if(desc!=null && !desc.isEmpty()){ any=true; CharSequence v=node.getContentDescription(); ok &= v!=null && desc.contentEquals(v); }
+        if(viewId!=null && !viewId.isEmpty()){ any=true; ok &= viewId.equals(node.getViewIdResourceName()); }
+        if(any && ok) out.add(node);
+        for(int i=0;i<node.getChildCount();i++) collectSelectorMatches(node.getChild(i),text,viewId,desc,out,depth+1);
+    }
+
     public JSONObject clickTextDetailed(String text){
         JSONObject result=new JSONObject();
         try{ result.put("query",text); }catch(Exception ignored){}

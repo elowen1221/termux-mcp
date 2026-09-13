@@ -175,6 +175,10 @@ def tool_android_open_app(package: str) -> dict:
     return android_bridge.open_app(package)
 
 
+def tool_android_context() -> dict:
+    """Return the active Android package/window context."""
+    return android_bridge.current_context()
+
 def tool_android_current_ui(max_depth: int = 6) -> dict:
     """Read a compact accessibility tree from the active Android window."""
     return android_bridge.current_ui(max_depth)
@@ -195,6 +199,11 @@ def tool_android_click_retry(text: str, attempts: int = 2, delay_ms: int = 180) 
     """Click visible text with a small bounded retry for transient accessibility failures."""
     if not permissions.allows("device.write"): return permissions.denied("device.write")
     return android_bridge.click_retry(text, attempts, delay_ms)
+
+def tool_android_click_selector(text: str = "", view_id: str = "", desc: str = "", index: int = 0) -> dict:
+    """Click an Android node using exact text, view id, description, or a combination."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.click_selector(text=text, view_id=view_id, desc=desc, index=index)
 
 def tool_android_tap(x: float, y: float) -> dict:
     """Tap absolute screen coordinates through AccessibilityService."""
@@ -292,9 +301,11 @@ _STEP_TOOLS = {
     "android_list_apps": tool_android_list_apps,
     "android_find_app": tool_android_find_app,
     "android_open_app": tool_android_open_app,
+    "android_context": tool_android_context,
     "android_current_ui": tool_android_current_ui,
     "android_screenshot": tool_android_screenshot,
     "android_click": tool_android_click,
+    "android_click_selector": tool_android_click_selector,
     "android_click_retry": tool_android_click_retry,
     "android_tap": tool_android_tap,
     "android_click_verify": tool_android_click_verify,
@@ -378,9 +389,11 @@ def _build_mcp_app():
     mcp.tool(name="android_list_apps")(tool_android_list_apps)
     mcp.tool(name="android_find_app")(tool_android_find_app)
     mcp.tool(name="android_open_app")(tool_android_open_app)
+    mcp.tool(name="android_context")(tool_android_context)
     mcp.tool(name="android_current_ui")(tool_android_current_ui)
     mcp.tool(name="android_screenshot")(tool_android_screenshot)
     mcp.tool(name="android_click")(tool_android_click)
+    mcp.tool(name="android_click_selector")(tool_android_click_selector)
     mcp.tool(name="android_click_retry")(tool_android_click_retry)
     mcp.tool(name="android_tap")(tool_android_tap)
     mcp.tool(name="android_click_verify")(tool_android_click_verify)

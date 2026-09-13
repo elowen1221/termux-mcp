@@ -85,3 +85,15 @@ def test_wait_for_text_times_out_cleanly(monkeypatch):
     data = android_bridge.wait_for_text("target", timeout_ms=100)
     assert data["ok"] is False
     assert data["verified"] is False
+
+
+def test_click_selector_requires_selector():
+    data = android_bridge.click_selector()
+    assert data["ok"] is False
+
+def test_click_selector_payload(monkeypatch):
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": payload})
+    data = android_bridge.click_selector(view_id="pkg:id/foo", index=1)
+    assert data["ok"] is True
+    assert data["data"]["view_id"] == "pkg:id/foo"
+    assert data["data"]["index"] == 1

@@ -79,6 +79,10 @@ def _accessibility(path: str, payload: dict | None = None) -> dict | None:
     except (OSError, urllib.error.URLError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
+def current_context() -> dict:
+    data = _accessibility("/v1/context")
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
 def current_ui(max_depth: int = 6) -> dict:
     data = _accessibility("/v1/ui", {"max_depth": max_depth})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
@@ -111,6 +115,12 @@ def click_retry(text: str, attempts: int = 2, delay_ms: int = 180) -> dict:
 
 def click(text: str) -> dict:
     data = _accessibility("/v1/click", {"text": text})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def click_selector(*, text: str = "", view_id: str = "", desc: str = "", index: int = 0) -> dict:
+    if not any((text.strip(), view_id.strip(), desc.strip())):
+        return {"ok": False, "error": "at least one selector is required"}
+    data = _accessibility("/v1/click-selector", {"text": text, "view_id": view_id, "desc": desc, "index": int(index)})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
 def tap(x: float, y: float) -> dict:

@@ -51,6 +51,7 @@ final class BridgeHttpServer {
                     int colon = line.indexOf(':'); if (colon < 0) continue;
                     String key=line.substring(0,colon).trim().toLowerCase(Locale.ROOT); String value=line.substring(colon+1).trim(); if(key.equals("x-walnut-token")) token=value; if(key.equals("content-length")) contentLength=Integer.parseInt(value);
                 }
+                if(contentLength<0 || contentLength>65536){ respond(out,413,json(false,"request body too large")); return; }
                 char[] bodyChars=new char[Math.max(0,contentLength)]; int read=0; while(read<bodyChars.length){int n=in.read(bodyChars,read,bodyChars.length-read);if(n<0)break;read+=n;} JSONObject body=read>0?new JSONObject(new String(bodyChars,0,read)):new JSONObject();
                 if (!BridgeToken.matches(context, token)) { respond(out, 401, json(false, "unauthorized")); return; }
                 WalnutAccessibilityService service = WalnutAccessibilityService.get();
@@ -65,6 +66,9 @@ final class BridgeHttpServer {
                     String pkg=app.getString("package"); Intent launch=context.getPackageManager().getLaunchIntentForPackage(pkg);
                     if(launch==null){respond(out,404,json(false,"launcher intent unavailable"));return;}
                     launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(launch); respond(out,200,envelope(true,null,app));
+                } else if (path.equals("/v1/context")) {
+                    if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
+                    respond(out,200,envelope(true,null,service.currentContext()));
                 } else if (path.equals("/v1/ui")) {
                     if(service==null||service.getRootInActiveWindow()==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     int depth=Math.max(1,Math.min(12,body.optInt("max_depth",6))); respond(out,200,envelope(true,null,NodeTree.compact(service.getRootInActiveWindow(),0,depth)));
@@ -72,6 +76,10 @@ final class BridgeHttpServer {
                     if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     JSONObject shot=service.screenshotPngBase64(); boolean ok=shot.optBoolean("success",false);
                     respond(out,ok?200:409,envelope(ok,ok?null:shot.optString("error","screenshot unavailable"),shot));
+                } else if (path.equals("/v1/click-selector")) {
+                    if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
+                    JSONObject click=service.clickSelectorDetailed(body.optString("text",""),body.optString("view_id",""),body.optString("desc",""),body.optInt("index",0));
+                    boolean ok=click.optBoolean("success",false); respond(out,ok?200:404,envelope(ok,ok?null:"selector not found or not clickable",click));
                 } else if (path.equals("/v1/click")) {
                     String text=body.optString("text","");
                     if(text.isEmpty()||service==null){respond(out,404,json(false,"node not found or not clickable"));return;}
