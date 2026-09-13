@@ -3,6 +3,12 @@ package buzz.walnutnest.bridge;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
+import android.graphics.Bitmap;
+import android.graphics.ColorSpace;
+import android.hardware.HardwareBuffer;
+import android.util.Base64;
+import java.io.ByteArrayOutputStream;
+import java.util.concurrent.atomic.AtomicReference;
 import android.graphics.Rect;
 import android.os.Bundle;
 import java.util.concurrent.CountDownLatch;
@@ -116,6 +122,42 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         if(!accepted) return false;
         try{ return done.await(1500,TimeUnit.MILLISECONDS) && completed.get(); }
         catch(InterruptedException e){ Thread.currentThread().interrupt(); return false; }
+    }
+
+    public JSONObject screenshotPngBase64(){
+        JSONObject result=new JSONObject();
+        if(android.os.Build.VERSION.SDK_INT<30){
+            try{result.put("success",false);result.put("error","screenshot requires Android 11+");}catch(Exception ignored){}
+            return result;
+        }
+        CountDownLatch done=new CountDownLatch(1);
+        AtomicReference<String> encoded=new AtomicReference<>();
+        AtomicReference<String> error=new AtomicReference<>();
+        try{
+            takeScreenshot(android.view.Display.DEFAULT_DISPLAY,getMainExecutor(),new TakeScreenshotCallback(){
+                @Override public void onSuccess(ScreenshotResult shot){
+                    HardwareBuffer buffer=shot.getHardwareBuffer();
+                    try{
+                        ColorSpace colorSpace=shot.getColorSpace();
+                        Bitmap hardware=Bitmap.wrapHardwareBuffer(buffer,colorSpace);
+                        if(hardware==null){error.set("could not wrap screenshot buffer");return;}
+                        Bitmap software=hardware.copy(Bitmap.Config.ARGB_8888,false);
+                        if(software==null){error.set("could not copy screenshot bitmap");return;}
+                        ByteArrayOutputStream out=new ByteArrayOutputStream();
+                        if(!software.compress(Bitmap.CompressFormat.PNG,100,out)){error.set("PNG compression failed");return;}
+                        encoded.set(Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP));
+                    }catch(Throwable t){error.set(t.getClass().getSimpleName()+": "+String.valueOf(t.getMessage()));}
+                    finally{try{buffer.close();}catch(Throwable ignored){} done.countDown();}
+                }
+                @Override public void onFailure(int errorCode){error.set("takeScreenshot failed: "+errorCode);done.countDown();}
+            });
+            if(!done.await(2500,TimeUnit.MILLISECONDS)){error.set("screenshot timed out");}
+        }catch(Throwable t){error.set(t.getClass().getSimpleName()+": "+String.valueOf(t.getMessage()));}
+        try{
+            if(encoded.get()!=null){result.put("success",true);result.put("format","png");result.put("base64",encoded.get());}
+            else{result.put("success",false);result.put("error",error.get()==null?"screenshot unavailable":error.get());}
+        }catch(Exception ignored){}
+        return result;
     }
 
     public boolean setFocusedText(String text){

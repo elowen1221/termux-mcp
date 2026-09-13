@@ -41,7 +41,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout updateCard=card();
         TextView updateLabel=text("UPDATES",11,MUTED); updateLabel.setLetterSpacing(.12f); updateCard.addView(updateLabel);
-        TextView version=text("Walnut Bridge · v0.4.0",19,INK); version.setTypeface(Typeface.DEFAULT,Typeface.BOLD); updateCard.addView(version,lp(-1,-2,0,5));
+        TextView version=text("Walnut Bridge · v0.4.1",19,INK); version.setTypeface(Typeface.DEFAULT,Typeface.BOLD); updateCard.addView(version,lp(-1,-2,0,5));
         TextView updateStatus=text("Ready to check for a newer build.",13,MUTED); updateCard.addView(updateStatus);
         Button update=button("Check for update",true); update.setOnClickListener(v->{
             update.setEnabled(false);

@@ -55,7 +55,7 @@ final class BridgeHttpServer {
                 if (!BridgeToken.matches(context, token)) { respond(out, 401, json(false, "unauthorized")); return; }
                 WalnutAccessibilityService service = WalnutAccessibilityService.get();
                 if (path.equals("/v1/status")) {
-                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", "0.4.0"); data.put("port", PORT);
+                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", "0.4.1"); data.put("port", PORT);
                     respond(out, 200, envelope(true, null, data));
                 } else if (path.equals("/v1/apps")) {
                     respond(out, 200, envelope(true, null, new JSONArray(launcherApps())));
@@ -68,6 +68,10 @@ final class BridgeHttpServer {
                 } else if (path.equals("/v1/ui")) {
                     if(service==null||service.getRootInActiveWindow()==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     int depth=Math.max(1,Math.min(12,body.optInt("max_depth",6))); respond(out,200,envelope(true,null,NodeTree.compact(service.getRootInActiveWindow(),0,depth)));
+                } else if (path.equals("/v1/screenshot")) {
+                    if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
+                    JSONObject shot=service.screenshotPngBase64(); boolean ok=shot.optBoolean("success",false);
+                    respond(out,ok?200:409,envelope(ok,ok?null:shot.optString("error","screenshot unavailable"),shot));
                 } else if (path.equals("/v1/click")) {
                     String text=body.optString("text","");
                     if(text.isEmpty()||service==null){respond(out,404,json(false,"node not found or not clickable"));return;}

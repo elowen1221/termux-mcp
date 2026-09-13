@@ -7,6 +7,7 @@ package/activity operations once the device owner has configured Shizuku.
 from __future__ import annotations
 
 import re
+import base64
 import os
 from pathlib import Path
 import json
@@ -60,6 +61,19 @@ def _accessibility(path: str, payload: dict | None = None) -> dict | None:
 def current_ui(max_depth: int = 6) -> dict:
     data = _accessibility("/v1/ui", {"max_depth": max_depth})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def screenshot_png() -> bytes | None:
+    data = _accessibility("/v1/screenshot")
+    if not data or not data.get("ok"):
+        return None
+    payload = data.get("data", {})
+    encoded = payload.get("base64")
+    if not isinstance(encoded, str):
+        return None
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError):
+        return None
 
 def click(text: str) -> dict:
     data = _accessibility("/v1/click", {"text": text})

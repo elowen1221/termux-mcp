@@ -179,6 +179,13 @@ def tool_android_current_ui(max_depth: int = 6) -> dict:
     """Read a compact accessibility tree from the active Android window."""
     return android_bridge.current_ui(max_depth)
 
+def tool_android_screenshot():
+    """Capture the current Android screen through AccessibilityService."""
+    data = android_bridge.screenshot_png()
+    if not data:
+        return {"ok": False, "error": "screenshot unavailable"}
+    return Image(data=data, format="png")
+
 def tool_android_click(text: str) -> dict:
     """Click a currently visible Android node by text, re-resolving it before action."""
     if not permissions.allows("device.write"): return permissions.denied("device.write")
@@ -267,6 +274,7 @@ _STEP_TOOLS = {
     "android_find_app": tool_android_find_app,
     "android_open_app": tool_android_open_app,
     "android_current_ui": tool_android_current_ui,
+    "android_screenshot": tool_android_screenshot,
     "android_click": tool_android_click,
     "android_type": tool_android_type,
     "android_swipe": tool_android_swipe,
@@ -318,7 +326,7 @@ async def tool_run_steps(
 
 
 def _build_mcp_app():
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.fastmcp import FastMCP, Image
     from mcp.server.transport_security import TransportSecuritySettings
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.responses import JSONResponse
@@ -348,6 +356,7 @@ def _build_mcp_app():
     mcp.tool(name="android_find_app")(tool_android_find_app)
     mcp.tool(name="android_open_app")(tool_android_open_app)
     mcp.tool(name="android_current_ui")(tool_android_current_ui)
+    mcp.tool(name="android_screenshot")(tool_android_screenshot)
     mcp.tool(name="android_click")(tool_android_click)
     mcp.tool(name="android_type")(tool_android_type)
     mcp.tool(name="android_swipe")(tool_android_swipe)
