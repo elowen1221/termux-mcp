@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -54,10 +55,10 @@ final class BridgeHttpServer {
                 if (!BridgeToken.matches(context, token)) { respond(out, 401, json(false, "unauthorized")); return; }
                 WalnutAccessibilityService service = WalnutAccessibilityService.get();
                 if (path.equals("/v1/status")) {
-                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", "0.2.0"); data.put("port", PORT);
+                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", BuildConfig.VERSION_NAME); data.put("port", PORT);
                     respond(out, 200, envelope(true, null, data));
                 } else if (path.equals("/v1/apps")) {
-                    respond(out, 200, envelope(true, null, launcherApps()));
+                    respond(out, 200, envelope(true, null, new JSONArray(launcherApps())));
                 } else if (path.equals("/v1/open")) {
                     String query=body.optString("query","").trim(); JSONObject app=findLauncherApp(query);
                     if(app==null){respond(out,404,json(false,"launcher app not found"));return;}

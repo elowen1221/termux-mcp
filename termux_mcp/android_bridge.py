@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import os
+from pathlib import Path
 import json
 import urllib.request
 import urllib.error
@@ -35,6 +36,13 @@ ACCESSIBILITY_URL = "http://127.0.0.1:8766"
 
 def _accessibility_token() -> str | None:
     value = os.environ.get("WALNUT_ANDROID_TOKEN", "").strip()
+    if value:
+        return value
+    token_file = Path.home() / ".config" / "termux-mcp" / "android-token"
+    try:
+        value = token_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
     return value or None
 
 def _accessibility(path: str, payload: dict | None = None) -> dict | None:
