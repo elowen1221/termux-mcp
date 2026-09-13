@@ -115,16 +115,16 @@ def test_conditional_step_can_skip_from_previous_result():
     assert result["results"][1]["skipped"] is True
     assert result["ok"] is True
 
-async def test_explicit_ok_false_stops_sequence():
+def test_explicit_ok_false_stops_sequence():
     calls = []
     async def dispatch(name, arguments):
         calls.append(name)
         return {"ok": False} if name == "first" else {"ok": True}
-    result = await run_steps(
+    result = asyncio.run(run_steps(
         [{"tool": "first"}, {"tool": "second"}],
         dispatch,
         stop_on_error=True,
-    )
+    ))
     assert result["stopped_early"] is True
     assert result["executed_steps"] == 1
     assert calls == ["first"]
