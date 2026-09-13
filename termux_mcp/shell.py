@@ -37,29 +37,83 @@ def get_active_pid() -> Optional[int]:
         return tld.active_pid
 
 
-def set_active_pid(pid: Optional[int]) -> None:
-    tld = _get_tld()
-    with tld.pid_lock:
-        tld.active_pid = pid
+# ── Cancellation registry (process-wide, deliberately NOT thread-local) ────
+#
+# `threading.local()` above cannot serve cancellation. ThreadingHTTPServer
+# handles every request on its own thread, so a `/cancel` request read
+# `active_pid` from a thread that had never run a command, got `None`, and
+# killed nothing — `/cancel` could never work over HTTP, which is the only
+# transport the REST API has.
+#
+# So the running pids live here, shared across threads. The per-thread
+# `active_pid` above is kept as-is for `/env`'s `active_command_pid` report.
+_active_pids: set = set()
+_active_pids_lock = threading.Lock()
+
+# How long a stopped command gets to exit on SIGTERM before SIGKILL.
+CANCEL_GRACE = 0.4
+
+
+def register_active_pid(pid: int) -> None:
+    with _active_pids_lock:
+        _active_pids.add(pid)
+
+
+def unregister_active_pid(pid: int) -> None:
+    with _active_pids_lock:
+        _active_pids.discard(pid)
+
+
+def active_pids() -> list:
+    with _active_pids_lock:
+        return sorted(_active_pids)
 
 
 def cancel_active() -> bool:
-    tld = _get_tld()
-    with tld.pid_lock:
-        pid = tld.active_pid
-    if pid is None:
+    """Stop every running command. True if anything was signalled.
+
+    Signals the **process group**, not just the pid: the daemon starts each
+    command with `setsid`, so a command's pid is also its group id, and
+    signalling the group reaches the command's children rather than orphaning
+    them (an `sh -c 'ffmpeg ...'` would otherwise leave ffmpeg running).
+    """
+    pids = active_pids()
+    if not pids:
         return False
-    try:
-        os.kill(pid, signal.SIGTERM)
-        return True
-    except ProcessLookupError:
-        return False
+
+    def signal_group(pid: int, sig: int) -> bool:
+        try:
+            if hasattr(os, "killpg"):
+                try:
+                    os.killpg(pid, sig)
+                except ProcessLookupError:
+                    os.kill(pid, sig)
+            else:
+                os.kill(pid, sig)
+            return True
+        except (ProcessLookupError, PermissionError):
+            return False
+
+    killed = False
+    for pid in pids:
+        if signal_group(pid, signal.SIGTERM):
+            killed = True
+
+    # Give well-behaved commands a moment to exit, then force the rest. Bounded,
+    # so /cancel cannot hang the client that asked for it.
+    if killed:
+        time.sleep(CANCEL_GRACE)
+        # SIGKILL is Unix-only; falling back to SIGTERM keeps this importable
+        # and callable on a platform that lacks it rather than raising inside
+        # the cancellation path.
+        force = getattr(signal, "SIGKILL", signal.SIGTERM)
+        for pid in active_pids():
+            signal_group(pid, force)
+
+    return killed
 
 
 def _inject_noninteractive(cmd: str) -> str:
-    # `export` is a sh builtin — invalid on Windows cmd.exe.
-    if os.name == "nt":
-        return cmd
     return f"export DEBIAN_FRONTEND=noninteractive; {cmd}"
 
 
@@ -75,12 +129,6 @@ def preprocess(cmd: str) -> str:
     cmd = _inject_auto_yes(cmd)
     cmd = _inject_noninteractive(cmd)
     return cmd
-
-
-def shell_prefix() -> str:
-    """POSIX-only shell setup prefix (`export` is a sh builtin, invalid on
-    Windows cmd.exe)."""
-    return "export PAGER=cat; " if os.name != "nt" else ""
 
 
 def handle_cd(raw_cmd: str) -> tuple:
@@ -207,10 +255,12 @@ def _run_process(handler: "BaseHTTPRequestHandler", raw_cmd: str) -> None:
         if hasattr(os, "setsid"):
             popen_kwargs["preexec_fn"] = os.setsid
 
-        process = subprocess.Popen(f"{shell_prefix()}{cmd}", **popen_kwargs)
+        process = subprocess.Popen(f"export PAGER=cat; {cmd}", **popen_kwargs)
 
         with tld.pid_lock:
             tld.active_pid = process.pid
+        # Also into the process-wide registry, which is what /cancel reads.
+        register_active_pid(process.pid)
 
         _spawn_auto_input(process, raw_cmd)
 
@@ -250,6 +300,25 @@ def _run_process(handler: "BaseHTTPRequestHandler", raw_cmd: str) -> None:
         if watchdog is not None:
             watchdog.join(timeout=2)
 
+        # Reap the child so returncode is actually populated before we read it.
+        #
+        # Draining stdout to EOF does NOT set returncode — only wait()/poll() do
+        # — and nothing else calls either for an ordinary command: the watchdog
+        # above arms only when COMMAND_TIMEOUT > 0 (default 0), and the
+        # auto-input thread polls only for install commands. Without this,
+        # returncode stayed None, `if process.returncode and ...` was falsy, and
+        # EVERY command reported "✅ Done" — including `false`, `exit 7` and a
+        # missing binary. Verified against a real shell.
+        #
+        # wait(), not poll(): immediately after EOF, poll() still loses the race
+        # with the kernel reaping the child and returns None. Bounded, so a
+        # command that closed stdout but lives on cannot hold the response open
+        # — it just falls back to the old behaviour instead of hanging.
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
+
         if not killed.is_set():
             if process.returncode and process.returncode != 0:
                 _send_chunk(handler, f"\n❌ Exit code: {process.returncode}\n")
@@ -261,4 +330,6 @@ def _run_process(handler: "BaseHTTPRequestHandler", raw_cmd: str) -> None:
     finally:
         with tld.pid_lock:
             tld.active_pid = None
+        if process is not None:
+            unregister_active_pid(process.pid)
         _finalize_chunks(handler)
