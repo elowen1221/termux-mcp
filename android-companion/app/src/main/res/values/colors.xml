@@ -1,0 +1,9 @@
+<resources>
+    <color name="paper">#F7F5EF</color>
+    <color name="ink">#292824</color>
+    <color name="muted">#77736B</color>
+    <color name="card">#FFFEFA</color>
+    <color name="line">#E6E1D7</color>
+    <color name="leaf">#66745E</color>
+    <color name="leaf_soft">#E7ECE3</color>
+</resources>
