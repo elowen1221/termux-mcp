@@ -28,8 +28,8 @@ from .shell import (
     get_current_dir,
     handle_cd,
     preprocess,
-    set_active_pid,
-    shell_prefix,
+    register_active_pid,
+    unregister_active_pid,
 )
 from .utils import is_safe_path, shell_quote
 
@@ -212,8 +212,8 @@ def execute_command(
         if hasattr(os, "setsid"):
             popen_kwargs["preexec_fn"] = os.setsid
 
-        process = subprocess.Popen(f"{shell_prefix()}{processed}", **popen_kwargs)
-        set_active_pid(process.pid)
+        process = subprocess.Popen(f"export PAGER=cat; {processed}", **popen_kwargs)
+        register_active_pid(process.pid)
         _spawn_auto_input(process, cmd)
 
         # Timeout watchdog — only armed when a positive timeout is set.
@@ -254,7 +254,8 @@ def execute_command(
         result.stderr += f"Error: {e}\n"
         result.exit_code = 1
     finally:
-        set_active_pid(None)
+        if process is not None:
+            unregister_active_pid(process.pid)
         result.stdout = "".join(stdout_lines)
         result.stderr = "".join(stderr_lines)
         result.exit_code = process.returncode if process is not None else 1
