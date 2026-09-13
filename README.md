@@ -424,6 +424,8 @@ Termux/Android MCP 项目侧重点不同，没有一个方案在所有维度都�
 
 特别感谢 **[termuxgpt/termux-mcp](https://github.com/termuxgpt/termux-mcp)** 的作者与贡献者。本仓库是它的 fork；原项目提供了 Termux HTTP/设备控制、安全检查、文件操作等重要基础，也是这个增强版本能够继续发展的起点。
 
+Android bridge 的设计还参考了 [Shizuku](https://github.com/RikkaApps/Shizuku) / [Shizuku-API rish](https://github.com/RikkaApps/Shizuku-API/tree/master/rish)、[celaya-solutions/android-claude-code-mcp-server](https://github.com/celaya-solutions/android-claude-code-mcp-server)、[AnandhuArjunan/Android-Automation-Termux-Shizuku-Rish](https://github.com/AnandhuArjunan/Android-Automation-Termux-Shizuku-Rish) 与 [xvxv-stack7/termux-shizuku](https://github.com/xvxv-stack7/termux-shizuku)。感谢这些项目把 Shizuku/rish、ADB shell 与 Android 自动化的路径公开出来；本项目当前 bridge 为独立实现，不复制它们的源码。
+
 同时感谢 [Termux](https://github.com/termux/termux-app) 及其生态、[Model Context Protocol](https://modelcontextprotocol.io/) 社区和本项目使用的开源依赖。所有上游版权与许可证声明均应继续保留；本 fork 按 AGPL-3.0 发布。
 
 # Development

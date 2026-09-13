@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from . import config
 from . import managed_mcp
 from . import operations
+from . import android_bridge
 from . import permissions
 from . import step_runner
 from .auth import get_auth_provider
@@ -152,6 +153,28 @@ def tool_permissions_status() -> dict:
     return permissions.status()
 
 
+def tool_android_status() -> dict:
+    """Report whether the optional Shizuku/rish Android bridge is ready."""
+    return android_bridge.status()
+
+
+def tool_android_list_apps(filter: str = "", third_party_only: bool = True) -> dict:
+    """List Android packages through the configured Shizuku/rish bridge."""
+    return android_bridge.list_apps(filter, third_party_only)
+
+
+def tool_android_find_app(query: str) -> dict:
+    """Find Android package ids by a package-name fragment."""
+    return android_bridge.find_app(query)
+
+
+def tool_android_open_app(package: str) -> dict:
+    """Open one Android package by resolving its launcher activity."""
+    if not permissions.allows("device.write"):
+        return permissions.denied("device.write")
+    return android_bridge.open_app(package)
+
+
 def tool_mcp_install(source: str, name: str = "", command: str = "", authorization: str = "") -> dict:
     if not permissions.allows("managed.install"):
         return permissions.denied("managed.install")
@@ -214,6 +237,10 @@ _STEP_TOOLS = {
     "get_battery": tool_get_battery,
     "send_notification": tool_send_notification,
     "permissions_status": tool_permissions_status,
+    "android_status": tool_android_status,
+    "android_list_apps": tool_android_list_apps,
+    "android_find_app": tool_android_find_app,
+    "android_open_app": tool_android_open_app,
     "mcp_list": tool_mcp_list,
     "mcp_search": tool_mcp_search,
     "mcp_inspect": tool_mcp_inspect,
@@ -286,6 +313,10 @@ def _build_mcp_app():
     mcp.tool(name="get_battery")(tool_get_battery)
     mcp.tool(name="send_notification")(tool_send_notification)
     mcp.tool(name="permissions_status")(tool_permissions_status)
+    mcp.tool(name="android_status")(tool_android_status)
+    mcp.tool(name="android_list_apps")(tool_android_list_apps)
+    mcp.tool(name="android_find_app")(tool_android_find_app)
+    mcp.tool(name="android_open_app")(tool_android_open_app)
     mcp.tool(name="mcp_install")(tool_mcp_install)
     mcp.tool(name="mcp_list")(tool_mcp_list)
     mcp.tool(name="mcp_search")(tool_mcp_search)
