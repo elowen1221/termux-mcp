@@ -83,6 +83,11 @@ def _pid_alive(pid: Optional[int]) -> bool:
             fields = stat_file.read().split()
         if len(fields) >= 3 and fields[2] == "Z":
             return False
+    except PermissionError:
+        # The launcher and its server run as the same app UID. If Android
+        # hides /proc for this PID, it cannot be our server; PID reuse by a
+        # different UID must not create a phantom running state.
+        return False
     except OSError:
         pass
     try:
@@ -91,7 +96,9 @@ def _pid_alive(pid: Optional[int]) -> bool:
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True
+        # Same-UID children are signalable with kill(pid, 0). Treat EACCES as
+        # a foreign/reused PID rather than keeping a stale pidfile alive.
+        return False
     except OSError:
         return False
 

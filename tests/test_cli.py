@@ -97,6 +97,25 @@ def test_stop_clears_stale_pid(isolated_state):
     assert process.read_pid() is None
 
 
+def test_pid_alive_permission_error_is_foreign(monkeypatch):
+    """Android may reuse a stale PID for another UID hidden by /proc."""
+    import builtins
+    real_open = builtins.open
+    real_kill = os.kill
+    def guarded_open(path, *args, **kwargs):
+        if str(path).startswith("/proc/424242/"):
+            raise PermissionError("foreign uid")
+        return real_open(path, *args, **kwargs)
+    def guarded_kill(pid, sig):
+        if pid == 424242 and sig == 0:
+            raise PermissionError("foreign uid")
+        return real_kill(pid, sig)
+    monkeypatch.setattr(builtins, "open", guarded_open)
+    monkeypatch.setattr(os, "kill", guarded_kill)
+    monkeypatch.setattr(os, "waitpid", lambda *a: (_ for _ in ()).throw(ChildProcessError()))
+    assert process._pid_alive(424242) is False
+
+
 def test_tunnel_pid_roundtrip(isolated_state):
     process.write_tunnel_pid(12345)
     assert process.read_tunnel_pid() == 12345
