@@ -5,6 +5,9 @@ import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Bundle;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayList;
@@ -69,7 +72,19 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         Path path=new Path();
         path.moveTo(x,y);
         GestureDescription.StrokeDescription stroke=new GestureDescription.StrokeDescription(path,0,80);
-        return dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(),null,null);
+        CountDownLatch done=new CountDownLatch(1);
+        AtomicBoolean completed=new AtomicBoolean(false);
+        boolean accepted=dispatchGesture(
+            new GestureDescription.Builder().addStroke(stroke).build(),
+            new GestureResultCallback(){
+                @Override public void onCompleted(GestureDescription gestureDescription){ completed.set(true); done.countDown(); }
+                @Override public void onCancelled(GestureDescription gestureDescription){ done.countDown(); }
+            },
+            null
+        );
+        if(!accepted) return false;
+        try{ return done.await(1500,TimeUnit.MILLISECONDS) && completed.get(); }
+        catch(InterruptedException e){ Thread.currentThread().interrupt(); return false; }
     }
 
     public boolean setFocusedText(String text){
