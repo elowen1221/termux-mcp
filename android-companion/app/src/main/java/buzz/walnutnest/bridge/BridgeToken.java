@@ -21,6 +21,13 @@ final class BridgeToken {
         return token;
     }
 
+    static String rotate(Context context) {
+        byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, token).commit();
+        return token;
+    }
+
     static boolean matches(Context context, String candidate) {
         if (candidate == null) return false;
         byte[] a = getOrCreate(context).getBytes(java.nio.charset.StandardCharsets.UTF_8);
