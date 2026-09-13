@@ -36,27 +36,47 @@ def _run(argv: list[str], timeout: float = 8.0) -> ExecResult:
 
 ACCESSIBILITY_URL = "http://127.0.0.1:8766"
 
+def _valid_accessibility_token(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value or len(value) > 256:
+        return None
+    # Header values must not contain controls/newlines. Pairing tokens are
+    # URL-safe Base64, so keep the accepted alphabet deliberately narrow.
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        return None
+    return value
+
 def _accessibility_token() -> str | None:
-    value = os.environ.get("WALNUT_ANDROID_TOKEN", "").strip()
+    value = _valid_accessibility_token(os.environ.get("WALNUT_ANDROID_TOKEN"))
     if value:
         return value
     token_file = Path.home() / ".config" / "termux-mcp" / "android-token"
     try:
-        value = token_file.read_text(encoding="utf-8").strip()
+        return _valid_accessibility_token(token_file.read_text(encoding="utf-8"))
     except OSError:
         return None
-    return value or None
 
 def _accessibility(path: str, payload: dict | None = None) -> dict | None:
     token = _accessibility_token()
     if not token:
         return None
-    data = json.dumps(payload or {}).encode()
-    req = urllib.request.Request(ACCESSIBILITY_URL + path, data=data, headers={"Content-Type": "application/json", "X-Walnut-Token": token}, method="POST")
+    data = json.dumps(payload or {}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(ACCESSIBILITY_URL + path, data=data, headers={"Content-Type": "application/json; charset=utf-8", "X-Walnut-Token": token}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=1.5) as response:
-            return json.loads(response.read().decode())
-    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        with urllib.request.urlopen(req, timeout=3.0) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            body = json.loads(exc.read().decode("utf-8"))
+            if isinstance(body, dict):
+                body.setdefault("http_status", exc.code)
+                return body
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            pass
+        return {"ok": False, "error": f"accessibility HTTP {exc.code}", "http_status": exc.code}
+    except (OSError, urllib.error.URLError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 def current_ui(max_depth: int = 6) -> dict:
@@ -97,19 +117,28 @@ def tap(x: float, y: float) -> dict:
     data = _accessibility("/v1/tap", {"x": x, "y": y})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
+def wait_for_text(expect_text: str, timeout_ms: int = 2000, max_depth: int = 8) -> dict:
+    needle = expect_text.strip().casefold()
+    if not needle:
+        return {"ok": False, "error": "expect_text is required", "verified": False}
+    timeout_ms = max(100, min(int(timeout_ms), 10000))
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    last_ui = None
+    checks = 0
+    while time.monotonic() < deadline:
+        checks += 1
+        last_ui = current_ui(max_depth)
+        if needle in json.dumps(last_ui, ensure_ascii=False).casefold():
+            return {"ok": True, "verified": True, "expect_text": expect_text, "checks": checks}
+        time.sleep(0.15)
+    return {"ok": False, "error": "expected text did not appear", "verified": False, "expect_text": expect_text, "checks": checks, "ui": last_ui}
+
 def click_and_verify(text: str, expect_text: str, timeout_ms: int = 2000) -> dict:
-    action = click(text)
+    action = click_retry(text, attempts=2, delay_ms=180)
     if not action.get("ok"):
         return {"ok": False, "action": action, "verified": False}
-    deadline = time.monotonic() + max(100, min(timeout_ms, 10000)) / 1000.0
-    last_ui = None
-    needle = expect_text.casefold()
-    while time.monotonic() < deadline:
-        last_ui = current_ui(8)
-        if needle and needle in json.dumps(last_ui, ensure_ascii=False).casefold():
-            return {"ok": True, "action": action, "verified": True, "expect_text": expect_text}
-        time.sleep(0.15)
-    return {"ok": True, "action": action, "verified": False, "expect_text": expect_text, "ui": last_ui}
+    verification = wait_for_text(expect_text, timeout_ms, 8)
+    return {"ok": verification.get("verified", False), "action": action, "verified": verification.get("verified", False), "verification": verification}
 
 def type_text(text: str) -> dict:
     data = _accessibility("/v1/type", {"text": text})
@@ -185,6 +214,16 @@ def open_app(package: str) -> dict:
         app = companion.get("data", {})
         return {"opened": True, "package": app.get("package"), "label": app.get("label"), "backend": "accessibility"}
     if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+        # Some OEM package managers transiently miss label lookups while the
+        # full launcher list remains available. Resolve the exact label once
+        # and retry by package id before falling back to Shizuku.
+        apps = list_apps(filter=package, third_party_only=False)
+        exact = next((app for app in apps.get("apps", []) if isinstance(app, dict) and str(app.get("label", "")).casefold() == package.casefold()), None)
+        if exact and exact.get("package"):
+            retried = _accessibility("/v1/open", {"query": exact["package"]})
+            if retried and retried.get("ok"):
+                app = retried.get("data", exact)
+                return {"opened": True, "package": app.get("package"), "label": app.get("label"), "backend": "accessibility", "resolved_from_label": package}
         return {"opened": False, "error": "app name was not found by the accessibility companion and is not a package id"}
     # cmd package resolve-activity gives us a concrete component when available.
     resolved = _remote(

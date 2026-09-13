@@ -41,13 +41,13 @@ public final class MainActivity extends Activity {
 
         LinearLayout updateCard=card();
         TextView updateLabel=text("UPDATES",11,MUTED); updateLabel.setLetterSpacing(.12f); updateCard.addView(updateLabel);
-        TextView version=text("Walnut Bridge · v0.4.1",19,INK); version.setTypeface(Typeface.DEFAULT,Typeface.BOLD); updateCard.addView(version,lp(-1,-2,0,5));
+        TextView version=text("Walnut Bridge · v"+appVersion(),19,INK); version.setTypeface(Typeface.DEFAULT,Typeface.BOLD); updateCard.addView(version,lp(-1,-2,0,5));
         TextView updateStatus=text("Ready to check for a newer build.",13,MUTED); updateCard.addView(updateStatus);
         Button update=button("Check for update",true); update.setOnClickListener(v->{
             update.setEnabled(false);
             Updater.checkAndDownload(this,new Updater.Callback(){
                 @Override public void onStatus(String message){runOnUiThread(()->{updateStatus.setText(message);if(message.startsWith("Already"))update.setEnabled(true);});}
-                @Override public void onReady(String name,File apk){runOnUiThread(()->{updateStatus.setText(name+" downloaded · checksum verified");update.setEnabled(true);Updater.install(MainActivity.this,apk);});}
+                @Override public void onReady(String name,File apk){runOnUiThread(()->{updateStatus.setText(name+" downloaded · checksum + signature verified");update.setEnabled(true);Updater.install(MainActivity.this,apk);});}
                 @Override public void onError(String message){runOnUiThread(()->{updateStatus.setText("Couldn’t update · "+message);update.setEnabled(true);});}
             });
         }); updateCard.addView(update,lp(-1,dp(48),14,0));
@@ -67,8 +67,9 @@ public final class MainActivity extends Activity {
         scroll.addView(page); setContentView(scroll); refreshStatus();
     }
 
-    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();}
+    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();Updater.resumePendingInstall(this);}
     private void refreshStatus(){String s=BridgeState.status(this);boolean ready="ready".equalsIgnoreCase(s)||WalnutAccessibilityService.get()!=null;bridgeState.setText(ready?"●  Connected":"○  Waiting for access");bridgeState.setTextColor(ready?LEAF:INK);}
+    private String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){return "?";}}
     private String maskedToken(){String t=BridgeToken.getOrCreate(this);return "•••• •••• ••••  ·  "+(t.length()>4?t.substring(t.length()-4):"••••");}
     private TextView text(String s,float size,int color){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);v.setLineSpacing(0,1.12f);return v;}
     private LinearLayout card(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);v.setPadding(dp(20),dp(19),dp(20),dp(18));GradientDrawable g=new GradientDrawable();g.setColor(Color.rgb(255,254,250));g.setCornerRadius(dp(22));g.setStroke(dp(1),Color.rgb(230,225,215));v.setBackground(g);return v;}

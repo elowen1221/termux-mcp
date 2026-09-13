@@ -201,6 +201,10 @@ def tool_android_tap(x: float, y: float) -> dict:
     if not permissions.allows("device.write"): return permissions.denied("device.write")
     return android_bridge.tap(x, y)
 
+def tool_android_wait_for_text(expect_text: str, timeout_ms: int = 2000, max_depth: int = 8) -> dict:
+    """Wait until expected text appears in the accessibility tree."""
+    return android_bridge.wait_for_text(expect_text, timeout_ms, max_depth)
+
 def tool_android_click_verify(text: str, expect_text: str, timeout_ms: int = 2000) -> dict:
     """Click visible text and verify that expected text appears afterwards."""
     if not permissions.allows("device.write"): return permissions.denied("device.write")
@@ -294,6 +298,7 @@ _STEP_TOOLS = {
     "android_click_retry": tool_android_click_retry,
     "android_tap": tool_android_tap,
     "android_click_verify": tool_android_click_verify,
+    "android_wait_for_text": tool_android_wait_for_text,
     "android_type": tool_android_type,
     "android_swipe": tool_android_swipe,
     "android_back": tool_android_back,
@@ -379,6 +384,7 @@ def _build_mcp_app():
     mcp.tool(name="android_click_retry")(tool_android_click_retry)
     mcp.tool(name="android_tap")(tool_android_tap)
     mcp.tool(name="android_click_verify")(tool_android_click_verify)
+    mcp.tool(name="android_wait_for_text")(tool_android_wait_for_text)
     mcp.tool(name="android_type")(tool_android_type)
     mcp.tool(name="android_swipe")(tool_android_swipe)
     mcp.tool(name="android_back")(tool_android_back)

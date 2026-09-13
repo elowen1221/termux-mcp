@@ -56,3 +56,32 @@ def test_click_retry_recovers(monkeypatch):
     data = android_bridge.click_retry("AC", attempts=2, delay_ms=0)
     assert data["ok"] is True
     assert data["attempts"] == 2
+
+
+def test_rejects_header_unsafe_token():
+    assert android_bridge._valid_accessibility_token("abc\ndef") is None
+    assert android_bridge._valid_accessibility_token("abc def") is None
+    assert android_bridge._valid_accessibility_token("abc_DEF-123") == "abc_DEF-123"
+
+def test_open_app_resolves_exact_label_after_direct_miss(monkeypatch):
+    calls = []
+    def fake(path, payload=None):
+        calls.append((path, payload))
+        if path == "/v1/open" and payload == {"query": "com.android.bbkcalculator"}:
+            return {"ok": True, "data": {"label": "计算器", "package": "com.android.bbkcalculator"}}
+        if path == "/v1/open":
+            return {"ok": False, "error": "launcher app not found"}
+        if path == "/v1/apps":
+            return {"ok": True, "data": [{"label": "计算器", "package": "com.android.bbkcalculator"}]}
+        return None
+    monkeypatch.setattr(android_bridge, "_accessibility", fake)
+    data = android_bridge.open_app("计算器")
+    assert data["opened"] is True
+    assert data["package"] == "com.android.bbkcalculator"
+    assert data["resolved_from_label"] == "计算器"
+
+def test_wait_for_text_times_out_cleanly(monkeypatch):
+    monkeypatch.setattr(android_bridge, "current_ui", lambda max_depth=8: {"ok": True, "data": {"text": "nope"}})
+    data = android_bridge.wait_for_text("target", timeout_ms=100)
+    assert data["ok"] is False
+    assert data["verified"] is False
