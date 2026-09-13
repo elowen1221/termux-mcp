@@ -163,6 +163,50 @@ def is_running() -> bool:
     return False
 
 
+def adopt_named_cloudflare_tunnel(config_path: str, tunnel_name: str) -> Optional[int]:
+    """Adopt an already-running named cloudflared process into our PID tracking."""
+    try:
+        proc = subprocess.run(
+            ["pgrep", "-f", f"cloudflared tunnel --config {config_path} run {tunnel_name}"],
+            capture_output=True, text=True, timeout=3, check=False,
+        )
+        for raw in proc.stdout.splitlines():
+            try:
+                pid = int(raw.strip())
+            except ValueError:
+                continue
+            if _pid_alive(pid):
+                write_tunnel_pid(pid)
+                return pid
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def start_named_cloudflare_tunnel(config_path: str, tunnel_name: str) -> Optional[int]:
+    """Start the configured named tunnel and track it like built-in tunnels."""
+    existing = adopt_named_cloudflare_tunnel(config_path, tunnel_name)
+    if existing:
+        return existing
+    os.makedirs(STATE_DIR, exist_ok=True)
+    log_f = open(TUNNEL_LOG_FILE, "ab")
+    try:
+        env = os.environ.copy()
+        env.pop("TERMUX_MCP_TOOL_CONTEXT", None)
+        proc = subprocess.Popen(
+            ["cloudflared", "tunnel", "--config", config_path, "run", tunnel_name],
+            stdout=log_f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+            start_new_session=True, env=env,
+        )
+    finally:
+        log_f.close()
+    time.sleep(1)
+    if proc.poll() is not None:
+        return None
+    write_tunnel_pid(proc.pid)
+    return proc.pid
+
+
 def tunnel_is_running() -> bool:
     """True when the tunnel PID file points at a live process.
 

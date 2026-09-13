@@ -79,6 +79,8 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--tunnel", default=None, choices=TUNNEL_CHOICES,
         help="Rebuild the tunnel with this provider (default: keep the running tunnel)",
     )
+    p_restart.add_argument("--named-tunnel", default=None, help="Start/keep a Cloudflare Named Tunnel by name")
+    p_restart.add_argument("--named-config", default="~/.cloudflared/config.yml", help="Named Tunnel config path")
     p_restart.add_argument(
         "--no-tunnel", action="store_true",
         help="Stop the tunnel and restart the server without one",
@@ -282,6 +284,14 @@ def _restart_tunnel_action(args: argparse.Namespace) -> str:
 
 def cmd_restart(args: argparse.Namespace) -> int:
     action = _restart_tunnel_action(args)
+    named_tunnel = getattr(args, "named_tunnel", None)
+    named_config = os.path.expanduser(getattr(args, "named_config", "~/.cloudflared/config.yml"))
+    if named_tunnel:
+        pid = process.start_named_cloudflare_tunnel(named_config, named_tunnel)
+        if not pid:
+            print(f"ERROR: could not start named tunnel {named_tunnel}.")
+            return 1
+        print(f"Named tunnel ready (pid {pid}): {named_tunnel}")
 
     # Self-restart through MCP must be deferred so this request can finish
     # before the serving process is terminated.
