@@ -16,3 +16,7 @@ def test_list_apps_filters(monkeypatch):
 
 def test_open_app_rejects_non_package():
     assert android_bridge.open_app("小红书")["opened"] is False
+
+def test_accessibility_probe_without_token(monkeypatch, tmp_path):
+    monkeypatch.setenv("WALNUT_ANDROID_TOKEN", "")
+    assert android_bridge._accessibility_token() is None

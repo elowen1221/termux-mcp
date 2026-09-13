@@ -7,6 +7,10 @@ package/activity operations once the device owner has configured Shizuku.
 from __future__ import annotations
 
 import re
+import os
+import json
+import urllib.request
+import urllib.error
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -27,6 +31,24 @@ def _run(argv: list[str], timeout: float = 8.0) -> ExecResult:
         return ExecResult("", str(exc), 127)
 
 
+ACCESSIBILITY_URL = "http://127.0.0.1:8766"
+
+def _accessibility_token() -> str | None:
+    value = os.environ.get("WALNUT_ANDROID_TOKEN", "").strip()
+    return value or None
+
+def _accessibility(path: str, payload: dict | None = None) -> dict | None:
+    token = _accessibility_token()
+    if not token:
+        return None
+    data = json.dumps(payload or {}).encode()
+    req = urllib.request.Request(ACCESSIBILITY_URL + path, data=data, headers={"Content-Type": "application/json", "X-Walnut-Token": token}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=1.5) as response:
+            return json.loads(response.read().decode())
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        return None
+
 def _rish() -> str | None:
     return shutil.which("rish")
 
@@ -39,6 +61,10 @@ def _remote(command: str) -> ExecResult:
 
 
 def status() -> dict:
+    companion = _accessibility("/v1/status")
+    if companion and companion.get("ok"):
+        data = companion.get("data", {})
+        return {"backend": "accessibility", "accessibility_ready": bool(data.get("accessibility")), "version": data.get("version"), "port": data.get("port"), "next": None if data.get("accessibility") else "Enable Walnut Android Bridge in Android accessibility settings."}
     rish = _rish()
     result = _remote("id") if rish else None
     ready = bool(result and result.returncode == 0 and "uid=2000" in result.stdout)
