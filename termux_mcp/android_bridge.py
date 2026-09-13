@@ -98,6 +98,13 @@ def status() -> dict:
 
 
 def list_apps(filter: str = "", third_party_only: bool = True) -> dict:
+    companion = _accessibility("/v1/apps")
+    if companion and companion.get("ok"):
+        apps = companion.get("data", [])
+        if filter:
+            needle = filter.casefold()
+            apps = [app for app in apps if needle in str(app.get("label", "")).casefold() or needle in str(app.get("package", "")).casefold()]
+        return {"apps": apps, "count": len(apps), "backend": "accessibility"}
     flag = " -3" if third_party_only else ""
     result = _remote(f"pm list packages{flag}")
     if result.returncode != 0:
@@ -114,13 +121,17 @@ def find_app(query: str) -> dict:
     if not query:
         return {"matches": [], "error": "query is required"}
     data = list_apps(filter=query, third_party_only=False)
-    return {"query": query, "matches": data.get("apps", []), "status": data.get("status")}
+    return {"query": query, "matches": data.get("apps", []), "backend": data.get("backend"), "status": data.get("status")}
 
 
 def open_app(package: str) -> dict:
     package = package.strip()
+    companion = _accessibility("/v1/open", {"query": package})
+    if companion and companion.get("ok"):
+        app = companion.get("data", {})
+        return {"opened": True, "package": app.get("package"), "label": app.get("label"), "backend": "accessibility"}
     if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
-        return {"opened": False, "error": "package must be an Android package id"}
+        return {"opened": False, "error": "app name was not found by the accessibility companion and is not a package id"}
     # cmd package resolve-activity gives us a concrete component when available.
     resolved = _remote(
         "cmd package resolve-activity --brief -a android.intent.action.MAIN "

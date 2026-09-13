@@ -1,11 +1,17 @@
 package buzz.walnutnest.bridge;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import org.json.JSONObject;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -46,8 +52,16 @@ final class BridgeHttpServer {
                 if (!BridgeToken.matches(context, token)) { respond(out, 401, json(false, "unauthorized")); return; }
                 WalnutAccessibilityService service = WalnutAccessibilityService.get();
                 if (path.equals("/v1/status")) {
-                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", "0.1.0"); data.put("port", PORT);
+                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", "0.2.0"); data.put("port", PORT);
                     respond(out, 200, envelope(true, null, data));
+                } else if (path.equals("/v1/apps")) {
+                    respond(out, 200, envelope(true, null, launcherApps()));
+                } else if (path.equals("/v1/open")) {
+                    String query=body.optString("query","").trim(); JSONObject app=findLauncherApp(query);
+                    if(app==null){respond(out,404,json(false,"launcher app not found"));return;}
+                    String pkg=app.getString("package"); Intent launch=context.getPackageManager().getLaunchIntentForPackage(pkg);
+                    if(launch==null){respond(out,404,json(false,"launcher intent unavailable"));return;}
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(launch); respond(out,200,envelope(true,null,app));
                 } else if (path.equals("/v1/ui")) {
                     if(service==null||service.getRootInActiveWindow()==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     int depth=Math.max(1,Math.min(12,body.optInt("max_depth",6))); respond(out,200,envelope(true,null,NodeTree.compact(service.getRootInActiveWindow(),0,depth)));
@@ -63,6 +77,17 @@ final class BridgeHttpServer {
                 } else respond(out, 404, json(false, "not_found"));
             } catch (Exception ignored) {}
         }
+    }
+
+    private List<JSONObject> launcherApps() throws Exception {
+        PackageManager pm=context.getPackageManager(); Intent intent=new Intent(Intent.ACTION_MAIN); intent.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> infos=pm.queryIntentActivities(intent,PackageManager.MATCH_ALL); List<JSONObject> apps=new ArrayList<>();
+        for(ResolveInfo info:infos){String pkg=info.activityInfo.packageName; String label=String.valueOf(info.loadLabel(pm)); JSONObject app=new JSONObject(); app.put("label",label); app.put("package",pkg); apps.add(app);}
+        apps.sort(Comparator.comparing(a->a.optString("label","").toLowerCase(Locale.ROOT))); return apps;
+    }
+    private JSONObject findLauncherApp(String query) throws Exception {
+        if(query.isEmpty())return null; String needle=query.toLowerCase(Locale.ROOT); JSONObject partial=null;
+        for(JSONObject app:launcherApps()){String label=app.optString("label"); String pkg=app.optString("package"); if(label.equalsIgnoreCase(query)||pkg.equalsIgnoreCase(query))return app; if(partial==null&&(label.toLowerCase(Locale.ROOT).contains(needle)||pkg.toLowerCase(Locale.ROOT).contains(needle)))partial=app;} return partial;
     }
     private static JSONObject envelope(boolean ok, String error, Object data) throws Exception { JSONObject j=new JSONObject(); j.put("ok",ok); if(error!=null)j.put("error",error); if(data!=null)j.put("data",data); return j; }
     private static JSONObject json(boolean ok, String error) throws Exception { return envelope(ok,error,null); }
