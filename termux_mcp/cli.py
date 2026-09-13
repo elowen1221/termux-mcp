@@ -468,6 +468,12 @@ def cmd_domain(args: argparse.Namespace) -> int:
         if args.domain_command == "guide":
             hostname = args.hostname or config.CONNECTION_VALUE
             state = named_tunnel.inspect_cloudflare()
+            if not hostname and os.path.isfile(path):
+                rules = named_tunnel.list_ingress(path)
+                mcp_service = f"http://127.0.0.1:{MCP_PORT}"
+                match = next((rule for rule in rules if rule.service == mcp_service), None)
+                if match:
+                    hostname = match.hostname
             print("\n( Ꙭ) 自有域名检查")
             print(f"  cloudflared：{'✓ 已安装' if state['installed'] else '○ 未安装'}")
             print(f"  Cloudflare 授权：{'✓ 已登录' if state['authenticated'] else '○ 还没登录'}")
@@ -490,9 +496,14 @@ def cmd_domain(args: argparse.Namespace) -> int:
                 print("README 的“自有域名”章节给了最小模板。")
             elif hostname:
                 chosen = state['tunnels'][0]['name'] or state['tunnels'][0]['id']
-                print("\n基础条件都齐啦。真正修改 ingress / DNS 前需要你明确执行：")
-                print(f"  termux-mcp domain add {hostname} --port {config.MCP_PORT} --tunnel {chosen}")
-                print("这个命令会先备份并校验配置，再创建 DNS route。")
+                configured = any(rule.hostname == hostname for rule in named_tunnel.list_ingress(path))
+                if configured:
+                    print(f"\n✓ {hostname} 已经在 ingress 中，不需要重新 setup。")
+                    print(f"启动现有 Named Tunnel：cloudflared tunnel --config {path} run {chosen}")
+                else:
+                    print("\n基础条件都齐啦。真正修改 ingress / DNS 前需要你明确执行：")
+                    print(f"  termux-mcp domain add {hostname} --port {config.MCP_PORT} --tunnel {chosen}")
+                    print("这个命令会先备份并校验配置，再创建 DNS route。")
             else:
                 print("\n还缺目标域名。先运行 termux-mcp setup --force 选择‘我有自己的域名’。")
             return 0
