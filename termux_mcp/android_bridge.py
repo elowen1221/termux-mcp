@@ -49,6 +49,26 @@ def _accessibility(path: str, payload: dict | None = None) -> dict | None:
     except (OSError, urllib.error.URLError, json.JSONDecodeError):
         return None
 
+def current_ui(max_depth: int = 6) -> dict:
+    data = _accessibility("/v1/ui", {"max_depth": max_depth})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def click(text: str) -> dict:
+    data = _accessibility("/v1/click", {"text": text})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def type_text(text: str) -> dict:
+    data = _accessibility("/v1/type", {"text": text})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def swipe(x1: float, y1: float, x2: float, y2: float, duration: int = 300) -> dict:
+    data = _accessibility("/v1/swipe", {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "duration": duration})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
+def back() -> dict:
+    data = _accessibility("/v1/back")
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
 def _rish() -> str | None:
     return shutil.which("rish")
 

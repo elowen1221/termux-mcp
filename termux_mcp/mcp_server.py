@@ -175,6 +175,31 @@ def tool_android_open_app(package: str) -> dict:
     return android_bridge.open_app(package)
 
 
+def tool_android_current_ui(max_depth: int = 6) -> dict:
+    """Read a compact accessibility tree from the active Android window."""
+    return android_bridge.current_ui(max_depth)
+
+def tool_android_click(text: str) -> dict:
+    """Click a currently visible Android node by text, re-resolving it before action."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.click(text)
+
+def tool_android_type(text: str) -> dict:
+    """Replace text in the currently focused editable Android node."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.type_text(text)
+
+def tool_android_swipe(x1: float, y1: float, x2: float, y2: float, duration: int = 300) -> dict:
+    """Dispatch an Android accessibility swipe gesture."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.swipe(x1, y1, x2, y2, duration)
+
+def tool_android_back() -> dict:
+    """Perform Android's global Back action through AccessibilityService."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.back()
+
+
 def tool_mcp_install(source: str, name: str = "", command: str = "", authorization: str = "") -> dict:
     if not permissions.allows("managed.install"):
         return permissions.denied("managed.install")
@@ -241,6 +266,11 @@ _STEP_TOOLS = {
     "android_list_apps": tool_android_list_apps,
     "android_find_app": tool_android_find_app,
     "android_open_app": tool_android_open_app,
+    "android_current_ui": tool_android_current_ui,
+    "android_click": tool_android_click,
+    "android_type": tool_android_type,
+    "android_swipe": tool_android_swipe,
+    "android_back": tool_android_back,
     "mcp_list": tool_mcp_list,
     "mcp_search": tool_mcp_search,
     "mcp_inspect": tool_mcp_inspect,
@@ -317,6 +347,11 @@ def _build_mcp_app():
     mcp.tool(name="android_list_apps")(tool_android_list_apps)
     mcp.tool(name="android_find_app")(tool_android_find_app)
     mcp.tool(name="android_open_app")(tool_android_open_app)
+    mcp.tool(name="android_current_ui")(tool_android_current_ui)
+    mcp.tool(name="android_click")(tool_android_click)
+    mcp.tool(name="android_type")(tool_android_type)
+    mcp.tool(name="android_swipe")(tool_android_swipe)
+    mcp.tool(name="android_back")(tool_android_back)
     mcp.tool(name="mcp_install")(tool_mcp_install)
     mcp.tool(name="mcp_list")(tool_mcp_list)
     mcp.tool(name="mcp_search")(tool_mcp_search)

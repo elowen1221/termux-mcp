@@ -25,7 +25,7 @@ EXPECTED_TOOLS = [
     "android_status",
     "android_list_apps",
     "android_find_app",
-    "android_open_app",
+    "android_open_app", "android_current_ui", "android_click", "android_type", "android_swipe", "android_back",
     "mcp_install",
     "mcp_list",
     "mcp_search",
