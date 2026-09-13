@@ -1,3 +1,86 @@
 package buzz.walnutnest.bridge;
-import android.app.Activity; import android.content.ClipData; import android.content.ClipboardManager; import android.content.Context; import android.content.Intent; import android.os.Bundle; import android.provider.Settings; import android.text.InputType; import android.view.Gravity; import android.widget.Button; import android.widget.LinearLayout; import android.widget.TextView; import android.widget.Toast;
-public final class MainActivity extends Activity { @Override public void onCreate(Bundle state) { super.onCreate(state); LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setGravity(Gravity.CENTER); box.setPadding(48,48,48,48); TextView title=new TextView(this); title.setText("Walnut Android Bridge\n\nA tiny pair of eyes and hands for Termux-MCP."); title.setTextSize(20); Button grant=new Button(this); grant.setText("Enable accessibility service"); grant.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))); TextView status=new TextView(this); status.setText("\nBridge status: "+BridgeState.status(this)+(BridgeState.error(this).isEmpty()?"":"\nError: "+BridgeState.error(this))); TextView hint=new TextView(this); hint.setText("\nPairing token stays on this phone. Copy it into Termux; do not send it in chat."); TextView token=new TextView(this); token.setText(BridgeToken.getOrCreate(this)); token.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD); token.setTextIsSelectable(true); Button copy=new Button(this); copy.setText("Copy pairing token"); copy.setOnClickListener(v->{ClipboardManager cm=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);cm.setPrimaryClip(ClipData.newPlainText("Walnut Android Bridge token",BridgeToken.getOrCreate(this)));Toast.makeText(this,"Token copied — paste it only into Termux",Toast.LENGTH_SHORT).show();}); Button rotate=new Button(this); rotate.setText("Rotate pairing token"); rotate.setOnClickListener(v->{String fresh=BridgeToken.rotate(this);token.setText(fresh);ClipboardManager cm=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);cm.setPrimaryClip(ClipData.newPlainText("Walnut Android Bridge token",fresh));Toast.makeText(this,"New token created and copied — old token is invalid",Toast.LENGTH_LONG).show();}); box.addView(title); box.addView(grant); box.addView(status); box.addView(hint); box.addView(token); box.addView(copy); box.addView(rotate); setContentView(box); } }
+
+import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.text.InputType;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+import java.io.File;
+
+public final class MainActivity extends Activity {
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        LinearLayout box=new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(48,48,48,48);
+
+        TextView title=new TextView(this);
+        title.setText("Walnut Android Bridge\n\nA tiny pair of eyes and hands for Termux-MCP.");
+        title.setTextSize(20);
+
+        Button grant=new Button(this);
+        grant.setText("Enable accessibility service");
+        grant.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+
+        TextView status=new TextView(this);
+        status.setText("\nBridge status: "+BridgeState.status(this)+(BridgeState.error(this).isEmpty()?"":"\nError: "+BridgeState.error(this)));
+
+        TextView updateStatus=new TextView(this);
+        updateStatus.setText("\nUpdater: ready");
+        Button update=new Button(this);
+        update.setText("Check for update");
+        update.setOnClickListener(v->{
+            update.setEnabled(false);
+            Updater.checkAndDownload(this,new Updater.Callback(){
+                @Override public void onStatus(String message){ runOnUiThread(()->{updateStatus.setText("\nUpdater: "+message); if(message.startsWith("Already")) update.setEnabled(true);}); }
+                @Override public void onReady(String versionName, File apk){ runOnUiThread(()->{updateStatus.setText("\nUpdater: "+versionName+" downloaded and verified"); update.setEnabled(true); Updater.install(MainActivity.this,apk);}); }
+                @Override public void onError(String message){ runOnUiThread(()->{updateStatus.setText("\nUpdater error: "+message); update.setEnabled(true);}); }
+            });
+        });
+
+        TextView hint=new TextView(this);
+        hint.setText("\nPairing token stays on this phone. Copy it into Termux; do not send it in chat.");
+        TextView token=new TextView(this);
+        token.setText(BridgeToken.getOrCreate(this));
+        token.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        token.setTextIsSelectable(true);
+
+        Button copy=new Button(this);
+        copy.setText("Copy pairing token");
+        copy.setOnClickListener(v->{
+            ClipboardManager cm=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("Walnut Android Bridge token",BridgeToken.getOrCreate(this)));
+            Toast.makeText(this,"Token copied — paste it only into Termux",Toast.LENGTH_SHORT).show();
+        });
+
+        Button rotate=new Button(this);
+        rotate.setText("Rotate pairing token");
+        rotate.setOnClickListener(v->{
+            String fresh=BridgeToken.rotate(this);
+            token.setText(fresh);
+            ClipboardManager cm=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("Walnut Android Bridge token",fresh));
+            Toast.makeText(this,"New token created and copied — old token is invalid",Toast.LENGTH_LONG).show();
+        });
+
+        box.addView(title);
+        box.addView(grant);
+        box.addView(status);
+        box.addView(updateStatus);
+        box.addView(update);
+        box.addView(hint);
+        box.addView(token);
+        box.addView(copy);
+        box.addView(rotate);
+        setContentView(box);
+    }
+}

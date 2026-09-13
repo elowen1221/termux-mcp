@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -50,3 +50,17 @@ jobs:
           name: walnut-android-bridge-debug
           path: android-companion/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publish in-app update assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          VERSION_NAME=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
+          VERSION_CODE=$(grep -o 'versionCode = [0-9]*' app/build.gradle.kts | head -1 | awk '{print $3}')
+          SHA256=$(sha256sum "$APK" | awk '{print $1}')
+          cp "$APK" walnut-android-bridge-latest.apk
+          cat > update.json <<EOF
+          {"version_code":$VERSION_CODE,"version_name":"$VERSION_NAME","sha256":"$SHA256","apk_url":"https://github.com/${{ github.repository }}/releases/download/android-companion-latest/walnut-android-bridge-latest.apk"}
+          EOF
+          gh release view android-companion-latest -R "${{ github.repository }}" >/dev/null 2>&1 || gh release create android-companion-latest -R "${{ github.repository }}" --title "Android companion latest" --notes "Rolling stable-signed Android companion build for in-app updates."
+          gh release upload android-companion-latest walnut-android-bridge-latest.apk update.json -R "${{ github.repository }}" --clobber
