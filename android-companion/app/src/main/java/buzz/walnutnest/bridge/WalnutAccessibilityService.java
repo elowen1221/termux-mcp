@@ -38,20 +38,18 @@ public final class WalnutAccessibilityService extends AccessibilityService {
 
     public List<AccessibilityNodeInfo> findText(String text){
         AccessibilityNodeInfo root=getRootInActiveWindow();
-        if(root==null) return new ArrayList<>();
-        List<AccessibilityNodeInfo> matches=root.findAccessibilityNodeInfosByText(text);
-        if(matches!=null && !matches.isEmpty()) return matches;
-        ArrayList<AccessibilityNodeInfo> fallback=new ArrayList<>();
-        collectMatches(root,text,fallback,0);
-        return fallback;
+        ArrayList<AccessibilityNodeInfo> exact=new ArrayList<>();
+        if(root==null) return exact;
+        collectExactMatches(root,text,exact,0);
+        return exact;
     }
 
-    private void collectMatches(AccessibilityNodeInfo node,String text,List<AccessibilityNodeInfo> out,int depth){
+    private void collectExactMatches(AccessibilityNodeInfo node,String text,List<AccessibilityNodeInfo> out,int depth){
         if(node==null || depth>40) return;
         CharSequence t=node.getText();
         CharSequence d=node.getContentDescription();
         if((t!=null && text.contentEquals(t)) || (d!=null && text.contentEquals(d))) out.add(node);
-        for(int i=0;i<node.getChildCount();i++) collectMatches(node.getChild(i),text,out,depth+1);
+        for(int i=0;i<node.getChildCount();i++) collectExactMatches(node.getChild(i),text,out,depth+1);
     }
 
     public boolean clickText(String text){
