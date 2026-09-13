@@ -217,37 +217,73 @@ def find_app(query: str) -> dict:
     return {"query": query, "matches": data.get("apps", []), "backend": data.get("backend"), "status": data.get("status")}
 
 
+def _foreground_package() -> str | None:
+    context = current_context()
+    if not context.get("ok"):
+        return None
+    data = context.get("data", {})
+    package = data.get("package")
+    return package if isinstance(package, str) and package not in ("", "null", "None") else None
+
+def _wait_for_package(package: str, timeout_ms: int = 1500) -> bool:
+    deadline = time.monotonic() + max(100, min(int(timeout_ms), 5000)) / 1000.0
+    while time.monotonic() < deadline:
+        if _foreground_package() == package:
+            return True
+        time.sleep(0.1)
+    return False
+
 def open_app(package: str) -> dict:
-    package = package.strip()
-    companion = _accessibility("/v1/open", {"query": package})
+    query = package.strip()
+    if not query:
+        return {"opened": False, "error": "app name or package is required"}
+
+    # Resolve the requested app first. Do not trust only the launch request:
+    # the foreground Accessibility context is the final source of truth.
+    resolved_package = query if re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", query) else None
+    resolved_label = None
+    if resolved_package is None:
+        apps = list_apps(filter=query, third_party_only=False)
+        candidates = [app for app in apps.get("apps", []) if isinstance(app, dict)]
+        exact = next((app for app in candidates if str(app.get("label", "")).casefold() == query.casefold()), None)
+        if exact is None and len(candidates) == 1:
+            exact = candidates[0]
+        if exact:
+            resolved_package = exact.get("package")
+            resolved_label = exact.get("label")
+
+    launch_query = resolved_package or query
+    companion = _accessibility("/v1/open", {"query": launch_query})
     if companion and companion.get("ok"):
         app = companion.get("data", {})
-        return {"opened": True, "package": app.get("package"), "label": app.get("label"), "backend": "accessibility"}
-    if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
-        # Some OEM package managers transiently miss label lookups while the
-        # full launcher list remains available. Resolve the exact label once
-        # and retry by package id before falling back to Shizuku.
-        apps = list_apps(filter=package, third_party_only=False)
-        exact = next((app for app in apps.get("apps", []) if isinstance(app, dict) and str(app.get("label", "")).casefold() == package.casefold()), None)
-        if exact and exact.get("package"):
-            retried = _accessibility("/v1/open", {"query": exact["package"]})
-            if retried and retried.get("ok"):
-                app = retried.get("data", exact)
-                return {"opened": True, "package": app.get("package"), "label": app.get("label"), "backend": "accessibility", "resolved_from_label": package}
+        resolved_package = app.get("package") or resolved_package
+        resolved_label = app.get("label") or resolved_label
+
+    if resolved_package and _wait_for_package(resolved_package):
+        result = {"opened": True, "package": resolved_package, "label": resolved_label, "backend": "accessibility", "verified_foreground": True}
+        if query != resolved_package:
+            result["resolved_from_label"] = query
+        return result
+
+    if not resolved_package:
         return {"opened": False, "error": "app name was not found by the accessibility companion and is not a package id"}
-    # cmd package resolve-activity gives us a concrete component when available.
+
+    # Optional privileged fallback for package ids when Accessibility launch
+    # could not be verified. Verification still uses foreground context.
     resolved = _remote(
         "cmd package resolve-activity --brief -a android.intent.action.MAIN "
-        f"-c android.intent.category.LAUNCHER {package}"
+        f"-c android.intent.category.LAUNCHER {resolved_package}"
     )
     component = resolved.stdout.strip().splitlines()[-1] if resolved.returncode == 0 and resolved.stdout.strip() else ""
     if "/" not in component:
-        return {"opened": False, "package": package, "error": resolved.stderr.strip() or "launcher activity not found"}
+        return {"opened": False, "package": resolved_package, "error": resolved.stderr.strip() or "launcher activity not found", "verified_foreground": False}
     started = _remote(f"am start -n {component}")
+    verified = started.returncode == 0 and _wait_for_package(resolved_package)
     return {
-        "opened": started.returncode == 0,
-        "package": package,
+        "opened": verified,
+        "package": resolved_package,
         "component": component,
         "stdout": started.stdout.strip(),
-        "error": started.stderr.strip() or None,
+        "error": None if verified else (started.stderr.strip() or "launch was not observed in foreground"),
+        "verified_foreground": verified,
     }

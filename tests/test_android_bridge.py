@@ -31,6 +31,8 @@ def test_list_apps_prefers_accessibility_labels(monkeypatch):
 
 def test_open_app_accepts_human_name_via_companion(monkeypatch):
     monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": {"label": "小红书", "package": "com.xingin.xhs"}} if path == "/v1/open" else None)
+    monkeypatch.setattr(android_bridge, "list_apps", lambda **kwargs: {"apps": [{"label": "小红书", "package": "com.xingin.xhs"}]})
+    monkeypatch.setattr(android_bridge, "_wait_for_package", lambda package, timeout_ms=1500: package == "com.xingin.xhs")
     data = android_bridge.open_app("小红书")
     assert data["opened"] is True
     assert data["package"] == "com.xingin.xhs"
@@ -63,22 +65,23 @@ def test_rejects_header_unsafe_token():
     assert android_bridge._valid_accessibility_token("abc def") is None
     assert android_bridge._valid_accessibility_token("abc_DEF-123") == "abc_DEF-123"
 
-def test_open_app_resolves_exact_label_after_direct_miss(monkeypatch):
-    calls = []
-    def fake(path, payload=None):
-        calls.append((path, payload))
-        if path == "/v1/open" and payload == {"query": "com.android.bbkcalculator"}:
-            return {"ok": True, "data": {"label": "计算器", "package": "com.android.bbkcalculator"}}
-        if path == "/v1/open":
-            return {"ok": False, "error": "launcher app not found"}
-        if path == "/v1/apps":
-            return {"ok": True, "data": [{"label": "计算器", "package": "com.android.bbkcalculator"}]}
-        return None
-    monkeypatch.setattr(android_bridge, "_accessibility", fake)
+def test_open_app_resolves_exact_label_and_verifies_foreground(monkeypatch):
+    monkeypatch.setattr(android_bridge, "list_apps", lambda **kwargs: {"apps": [{"label": "计算器", "package": "com.android.bbkcalculator"}]})
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": {"label": "计算器", "package": "com.android.bbkcalculator"}} if path == "/v1/open" else None)
+    monkeypatch.setattr(android_bridge, "_wait_for_package", lambda package, timeout_ms=1500: package == "com.android.bbkcalculator")
     data = android_bridge.open_app("计算器")
     assert data["opened"] is True
+    assert data["verified_foreground"] is True
     assert data["package"] == "com.android.bbkcalculator"
     assert data["resolved_from_label"] == "计算器"
+
+def test_open_app_does_not_trust_launch_without_foreground(monkeypatch):
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": {"label": "Calc", "package": "com.example.calc"}} if path == "/v1/open" else None)
+    monkeypatch.setattr(android_bridge, "_wait_for_package", lambda package, timeout_ms=1500: False)
+    monkeypatch.setattr(android_bridge, "_remote", lambda cmd: android_bridge.ExecResult("", "no privileged fallback", 1))
+    data = android_bridge.open_app("com.example.calc")
+    assert data["opened"] is False
+    assert data["verified_foreground"] is False
 
 def test_wait_for_text_times_out_cleanly(monkeypatch):
     monkeypatch.setattr(android_bridge, "current_ui", lambda max_depth=8: {"ok": True, "data": {"text": "nope"}})
