@@ -48,3 +48,11 @@ def test_click_and_verify(monkeypatch):
     data = android_bridge.click_and_verify("=", "15", 300)
     assert data["ok"] is True
     assert data["verified"] is True
+
+
+def test_click_retry_recovers(monkeypatch):
+    calls = iter([{"ok": False, "error": "transient"}, {"ok": True}])
+    monkeypatch.setattr(android_bridge, "click", lambda text: next(calls))
+    data = android_bridge.click_retry("AC", attempts=2, delay_ms=0)
+    assert data["ok"] is True
+    assert data["attempts"] == 2

@@ -191,6 +191,11 @@ def tool_android_click(text: str) -> dict:
     if not permissions.allows("device.write"): return permissions.denied("device.write")
     return android_bridge.click(text)
 
+def tool_android_click_retry(text: str, attempts: int = 2, delay_ms: int = 180) -> dict:
+    """Click visible text with a small bounded retry for transient accessibility failures."""
+    if not permissions.allows("device.write"): return permissions.denied("device.write")
+    return android_bridge.click_retry(text, attempts, delay_ms)
+
 def tool_android_tap(x: float, y: float) -> dict:
     """Tap absolute screen coordinates through AccessibilityService."""
     if not permissions.allows("device.write"): return permissions.denied("device.write")
@@ -286,6 +291,7 @@ _STEP_TOOLS = {
     "android_current_ui": tool_android_current_ui,
     "android_screenshot": tool_android_screenshot,
     "android_click": tool_android_click,
+    "android_click_retry": tool_android_click_retry,
     "android_tap": tool_android_tap,
     "android_click_verify": tool_android_click_verify,
     "android_type": tool_android_type,
@@ -370,6 +376,7 @@ def _build_mcp_app():
     mcp.tool(name="android_current_ui")(tool_android_current_ui)
     mcp.tool(name="android_screenshot")(tool_android_screenshot)
     mcp.tool(name="android_click")(tool_android_click)
+    mcp.tool(name="android_click_retry")(tool_android_click_retry)
     mcp.tool(name="android_tap")(tool_android_tap)
     mcp.tool(name="android_click_verify")(tool_android_click_verify)
     mcp.tool(name="android_type")(tool_android_type)

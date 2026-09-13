@@ -76,6 +76,19 @@ def screenshot_png() -> bytes | None:
     except (ValueError, TypeError):
         return None
 
+def click_retry(text: str, attempts: int = 2, delay_ms: int = 180) -> dict:
+    attempts = max(1, min(int(attempts), 4))
+    delay_ms = max(0, min(int(delay_ms), 1500))
+    history = []
+    for attempt in range(1, attempts + 1):
+        result = click(text)
+        history.append({"attempt": attempt, "result": result})
+        if result.get("ok"):
+            return {"ok": True, "attempts": attempt, "result": result}
+        if attempt < attempts and delay_ms:
+            time.sleep(delay_ms / 1000.0)
+    return {"ok": False, "error": "click failed after retries", "attempts": attempts, "history": history}
+
 def click(text: str) -> dict:
     data = _accessibility("/v1/click", {"text": text})
     return data or {"ok": False, "error": "accessibility companion unavailable"}

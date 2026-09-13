@@ -26,6 +26,10 @@ def _failed(result: Any) -> bool:
         return True
     if result.get("error"):
         return True
+    # Tool envelopes commonly report explicit success as {"ok": false}.
+    # Treat that as a failed step so side-effect sequences stop safely.
+    if result.get("ok") is False:
+        return True
     exit_code = result.get("exit_code")
     return isinstance(exit_code, int) and exit_code != 0
 
