@@ -33,10 +33,10 @@ def test_cute_demo_discovery_and_calls(tmp_path, monkeypatch):
         ]
 
         greeting = await managed_mcp.call(
-            "cute-demo", "say_hello", {"name": "祁桉"}
+            "cute-demo", "say_hello", {"name": "朋友"}
         )
         greeting_text = greeting["content"][0]["text"]
-        assert "你好，祁桉" in greeting_text
+        assert "你好，朋友" in greeting_text
         assert "( Ꙭ)" in greeting_text
 
         addition = await managed_mcp.call(
