@@ -185,6 +185,8 @@ def tool_android_current_ui(max_depth: int = 6) -> dict:
 
 def tool_android_screenshot():
     """Capture the current Android screen through AccessibilityService."""
+    from mcp.server.fastmcp import Image
+
     data = android_bridge.screenshot_png()
     if not data:
         return {"ok": False, "error": "screenshot unavailable"}
