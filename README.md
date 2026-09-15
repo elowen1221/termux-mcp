@@ -42,6 +42,7 @@ termux-mcp status    看 MCP / tunnel 还活着没有
 termux-mcp url       看现在应该填给 AI 的 MCP 地址
 termux-mcp guide     忘记下一步时重新叫出新手小抄
 termux-mcp doctor    出问题先自检，不要急着重装
+termux-mcp-heal      连接挂了就跑它：自动检查 + 尝试修复
 termux-mcp restart   普通重启尽量保留现有免费 tunnel URL
 ```
 
@@ -291,11 +292,24 @@ termux-mcp restart
 | `termux-mcp logs` | 查看日志（`-n 100` 看更多） |
 | `termux-mcp doctor` | 自检（PASS/WARN/FAIL） |
 | `termux-mcp doctor --json` | 输出适合脚本与监控读取的结构化诊断结果 |
+| `termux-mcp-heal` | 一键检查本地 MCP + Cloudflare Named Tunnel；能修就自动修，修不了就打印关键日志 |
 | `termux-mcp setup` | 重新运行首次连接向导 |
 | `termux-mcp permissions` | 查看当前 AI 权限 |
 | `termux-mcp permissions set full` | 将权限切换为完全控制（重启生效） |
 | `termux-mcp token --show` | 显示 token |
 | `termux-mcp token --rotate` | 更换 token |
+
+### 一键自愈：连接挂了先跑这个
+
+如果 AI 突然连不上，但 `termux-mcp status` 看起来又像没事，可以先运行：
+
+```bash
+termux-mcp-heal
+```
+
+它会按顺序检查：本地 Termux-MCP → REST / MCP 端口 → Cloudflare Named Tunnel connector。常见的 `1033`、connector 掉线、重复 `cloudflared` 实例会尝试自动恢复；如果修不好，会把最近的 tunnel 日志直接打印出来，方便把整段结果发给维护者继续排查。
+
+输出很简单：`🌱` 表示正常，`🛠` 表示正在自动处理，`🥲` 才需要人工介入。脚本只处理当前配置里的 `termux-mcp` Named Tunnel，不会碰其他 tunnel。
 
 ## 自有域名：固定 MCP 地址
 
@@ -400,6 +414,7 @@ Static Bearer token is the default auth mode. A standards-compliant **OAuth 2.0 
 | `401 Unauthorized` | 请求没带 token 或 token 错 | **这是认证在正常工作**。带上 `Authorization: Bearer <token>` 再试 |
 | `400 Bad Request / Missing session` | MCP 协议握手问题，**不代表服务挂了** | 用官方 MCP 客户端重试；检查 URL 是否以 `/mcp` 结尾 |
 | `406 Not Acceptable` | 客户端请求头不兼容，**不代表服务挂了** | 换支持 Streamable HTTP 的客户端 |
+| Cloudflare `1033` / `cloudflared` 进程还在但没有 active connection | Named Tunnel connector 掉线，属于“进程活着、隧道其实死了” | 先运行 `termux-mcp-heal`。它会检查 connector、清理当前 tunnel 的残留进程并重启；仍失败时会打印最近 tunnel 日志 |
 | tunnel timeout | 网络/VPN 问题 | `termux-mcp restart --tunnel pinggy` 换隧道；关 VPN 重试 |
 | cloudflared precheck 卡住 | cloudflared 在部分网络卡住 | 用 `--tunnel pinggy` 或 `--tunnel localhost-run` |
 | SSH password prompt | 隧道需要交互认证 | 换 pinggy（`--tunnel pinggy`） |

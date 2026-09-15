@@ -169,6 +169,12 @@ STEP="设置权限"
 chmod 600 "$CONFIG" 2>/dev/null || true
 ok "config.env 权限 600"
 
+# 安装一键自愈小助手
+if [ -x "$PWD/scripts/termux-mcp-heal.sh" ]; then
+  ln -sf "$PWD/scripts/termux-mcp-heal.sh" "$PREFIX/bin/termux-mcp-heal"
+  ok "termux-mcp-heal 一键自愈命令"
+fi
+
 # ── 13. 自检 ────────────────────────────────────────────────────────────────
 STEP="自检"
 log "运行自检 (termux-mcp doctor) ..."
@@ -187,7 +193,8 @@ echo " 安装完成！( Ꙭ)"
 echo "=================================================="
 echo ""
 echo "想截图保存常用命令：termux-mcp guide"
-echo "出问题先自检：termux-mcp doctor"
+echo "连接抽风时：termux-mcp-heal"
+echo "普通自检：termux-mcp doctor"
 echo ""
 if [ "$FIRST_INSTALL" -eq 0 ]; then
   echo "已有配置保持不变。运行 termux-mcp status 查看状态。"
