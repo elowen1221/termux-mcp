@@ -68,9 +68,11 @@ ok "pkg update"
 
 # ── 3. 安装系统依赖 ─────────────────────────────────────────────────────────
 STEP="安装系统依赖"
-log "安装 python / git / openssh ..."
-run_logged pkg install -y python git openssh || fail "pkg install 失败"
-ok "python git openssh"
+log "安装 python / git / openssh / rust ..."
+# MCP SDK depends on pydantic-core. On fresh Termux/Python combinations a
+# compatible wheel may not exist yet, so pip must be able to build it locally.
+run_logged pkg install -y python git openssh rust || fail "pkg install 失败（需要 python / git / openssh / rust）"
+ok "python git openssh rust"
 
 # ── 4. 检查 Python / pip ────────────────────────────────────────────────────
 STEP="检查 Python"

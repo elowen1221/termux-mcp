@@ -140,10 +140,10 @@ pkg install -y git
 ## 第 5 步：下载本仓库
 
 ```
-git clone https://github.com/elowen1221/termux-mcp.git
+git clone https://github.com/elowen1221/termux-mcp.git Termux-MCP
 ```
 
-- **正常情况下会看到**：`Cloning into 'Termux-MCP'...` 然后回到 `$`。
+- **正常情况下会看到**：`Cloning into 'Termux-MCP'...` 然后回到 `$`。命令显式指定了目录名，因此后面的 `cd Termux-MCP` 不受 Git 默认目录名大小写影响。
 - **如果看到红字**：先看错误里是否明确写着网络、DNS 或 GitHub 连接失败；可以换网络后重试。不要看到红字就直接删除整个 Termux。
 
 ## 第 6 步：进入目录
