@@ -42,4 +42,4 @@ jobs:
       - name: Ruff
         run: ruff check --select E9,F63,F7,F82 termux_mcp tests
       - name: Bash syntax
-        run: bash -n scripts/install.sh scripts/bootstrap.sh add-repo.sh
+        run: bash -n scripts/install.sh scripts/bootstrap.sh scripts/termux-mcp-heal.sh add-repo.sh
