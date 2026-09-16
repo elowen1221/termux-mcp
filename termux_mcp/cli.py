@@ -179,7 +179,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     # D. Wait for REST + MCP health.
     rest_ok = process.wait_http(PORT)
-    mcp_ok, mcp_detail = (process.wait_mcp_initialize(MCP_PORT, AUTH_TOKEN)
+    mcp_ok, mcp_detail = (process.wait_mcp_initialize(MCP_PORT, token)
                           if MCP_ENABLED else (True, "disabled"))
     print(f"REST http://127.0.0.1:{PORT}: {'OK' if rest_ok else 'NOT RESPONDING'}")
     if MCP_ENABLED:
