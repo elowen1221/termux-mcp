@@ -203,6 +203,7 @@ MCP_ENABLED: bool = _env_or_file("TERMUX_MCP_MCP_ENABLED", "1").lower() in (
     "1", "true", "yes", "on",
 )
 MCP_HOST: str = _env_or_file("TERMUX_MCP_MCP_HOST", HOST)
+LAN_HOST: str = _env_or_file("TERMUX_MCP_LAN_HOST", "").strip()
 MCP_PORT: int = _int_setting("TERMUX_MCP_MCP_PORT", _DEFAULT_MCP_PORT, 1, 65535)
 if MCP_ENABLED and MCP_PORT == PORT:
     raise SystemExit("Invalid configuration: REST and MCP ports must be different")
@@ -278,6 +279,17 @@ def rotate_token() -> str:
 def token_configured() -> bool:
     """True when an auth token is configured (env or config file)."""
     return bool(AUTH_TOKEN)
+
+
+def save_lan_mode(lan_host: str = "") -> None:
+    """Persist explicit LAN exposure; empty restores localhost-only defaults."""
+    lan_host = lan_host.strip()
+    updates = {"TERMUX_MCP_LAN_HOST": lan_host}
+    if lan_host:
+        updates.update({"TERMUX_MCP_HOST": "0.0.0.0", "TERMUX_MCP_MCP_HOST": "0.0.0.0"})
+    else:
+        updates.update({"TERMUX_MCP_HOST": "127.0.0.1", "TERMUX_MCP_MCP_HOST": "127.0.0.1"})
+    _write_config(updates)
 
 
 def save_connection_preference(mode: str, value: str = "") -> None:

@@ -33,6 +33,7 @@ from packaging.version import InvalidVersion, Version
 
 from . import __version__
 from . import process
+from . import config as config_mod
 from . import tunnel as tunnel_mod
 from .config import (
     AUTH_TOKEN,
@@ -71,6 +72,9 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--no-tunnel", action="store_true",
         help="Start the server without any public tunnel",
     )
+    lan_group = p_start.add_mutually_exclusive_group()
+    lan_group.add_argument("--lan", action="store_true", help="Persist LAN access using the current Wi-Fi IPv4 address")
+    lan_group.add_argument("--local-only", action="store_true", help="Persist localhost-only access (disable LAN mode)")
 
     sub.add_parser("stop", help="Stop the running server and tunnel")
 
@@ -160,18 +164,64 @@ def _reuse_runtime_tunnel(choice: str, source: str, url: str, tunnel_running: bo
     """True when default start can safely keep the existing free URL."""
     return choice == "auto" and tunnel_running and source == "runtime" and bool(url)
 
+def _select_lan_ipv4(ifconfig_text: str) -> str:
+    """Best-effort Android LAN IPv4 discovery, preferring Wi-Fi/AP over VPN/mobile."""
+    import ipaddress
+    import re
+    found = []
+    iface = ""
+    for line in ifconfig_text.splitlines():
+        if line and not line[0].isspace() and ":" in line:
+            iface = line.split(":", 1)[0]
+        match = re.search(r"\binet (?:addr:)?(\d+(?:\.\d+){3})", line)
+        if not match or not iface:
+            continue
+        ip = match.group(1)
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if not addr.is_private or addr.is_loopback:
+            continue
+        if iface.startswith(("tun", "ccmni", "rmnet", "lo")):
+            continue
+        rank = 0 if iface.startswith(("wlan", "ap")) else 1
+        found.append((rank, iface, ip))
+    found.sort()
+    return found[0][2] if found else ""
+
+
+def _detect_lan_ipv4() -> str:
+    """Read Android interfaces and select a reachable LAN address."""
+    import subprocess
+    try:
+        proc = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=3, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return _select_lan_ipv4(proc.stdout)
+
+
 def cmd_start(args: argparse.Namespace) -> int:
-    # A. Load config / ensure token.
+    # Reject duplicate instances before mutating persistent LAN configuration.
+    if process.is_running():
+        print(f"termux-mcp is already running (pid {process.read_pid()}). Use termux-mcp restart to change running mode.")
+        return 1
+
+    # Load auth before starting; health checks need the configured token.
     token = ensure_token()
     print(f"Auth token: configured (length {len(token)})")
 
-    # B. Avoid duplicate instances.
-    if process.is_running():
-        print(
-            f"termux-mcp is already running (pid {process.read_pid()}). "
-            "Use 'termux-mcp status' or 'termux-mcp restart'."
-        )
-        return 1
+    # LAN exposure is persistent by design; ordinary restarts inherit it.
+    if getattr(args, "lan", False):
+        lan_ip = _detect_lan_ipv4()
+        if not lan_ip:
+            print("LAN mode not enabled: could not detect a non-loopback IPv4 address.")
+            return 1
+        config_mod.save_lan_mode(lan_ip)
+        print(f"LAN mode saved: http://{lan_ip}:{MCP_PORT}/mcp")
+    elif getattr(args, "local_only", False):
+        config_mod.save_lan_mode("")
+        print("Local-only mode saved.")
 
     # C. Start the server.
     pid = process.start_server()
@@ -324,6 +374,11 @@ def cmd_restart(args: argparse.Namespace) -> int:
         # The old public URL is no longer valid once the tunnel is gone.
         clear_public_url()
     else:  # keep
+        # A named Cloudflare tunnel may have been started outside this launcher
+        # (for example a shared multi-route tunnel). Adopt it before declaring
+        # that there is no tunnel to keep.
+        if not process.tunnel_is_running():
+            process.adopt_named_cloudflare_tunnel(named_config, named_tunnel or "termux-mcp")
         if process.tunnel_is_running():
             print(f"Tunnel kept (pid {process.read_tunnel_pid()})")
             pub = get_public_url()
@@ -370,6 +425,10 @@ def cmd_status() -> int:
     from . import config
     print(f"Client: {config.CLIENT_TARGET}")
     print(f"Permissions: {config.PERMISSION_MODE}")
+    if config.LAN_HOST:
+        print(f"LAN: enabled — http://{config.LAN_HOST}:{MCP_PORT}/mcp")
+    else:
+        print("LAN: disabled (localhost only)")
     if WORKSPACE_ROOT:
         print(f"Workspace: {WORKSPACE_ROOT}")
     if process.tunnel_is_running():
@@ -689,12 +748,26 @@ def cmd_doctor(json_output: bool = False) -> int:
            f"pid {process.read_pid()}" if running else "not running", warn=not running,
            emit=emit)
 
+    # LAN exposure is explicit and diagnosable; disabled is a healthy default.
+    lan_host = config_mod.LAN_HOST
+    lan_enabled = bool(lan_host) and MCP_HOST not in ("127.0.0.1", "localhost")
+    _check(checks, "lan_mode", "LAN mode", True,
+           f"enabled — http://{lan_host}:{MCP_PORT}/mcp" if lan_enabled
+           else "disabled (localhost only)", emit=emit)
+
     # Tunnel deps
     for name in ("ssh", "cloudflared"):
         import shutil
         found = shutil.which(name) is not None
         _check(checks, f"tunnel_{name}", f"tunnel dep: {name}", found,
                shutil.which(name) or "not installed", warn=not found, emit=emit)
+
+    # Public edge health is separate from local process/protocol health.
+    pub = get_public_url()
+    if pub:
+        public_ok, public_detail = process.public_http_probe(pub, timeout=5.0)
+        _check(checks, "public_transport", "Public transport", public_ok, public_detail,
+               warn=not public_ok, emit=emit)
 
     # Localhost MCP protocol health: a real authenticated initialize request.
     if MCP_ENABLED and process.port_open(MCP_PORT):

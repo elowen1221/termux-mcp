@@ -221,6 +221,28 @@ def tunnel_is_running() -> bool:
     clear_tunnel_pid()
     return False
 
+def public_http_probe(url: str, timeout: float = 5.0) -> tuple[bool, str]:
+    """Bounded public reachability probe; auth HTTP errors still prove reachability."""
+    import urllib.error
+    import urllib.request
+
+    target = url.rstrip("/") + "/mcp"
+    request = urllib.request.Request(target, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            code = int(response.status)
+    except urllib.error.HTTPError as exc:
+        code = int(exc.code)
+        try:
+            body = exc.read(256).decode("utf-8", "replace").lower()
+        except Exception:
+            body = ""
+        if code == 530 and "1033" in body:
+            return False, "Cloudflare 1033: tunnel connector unavailable"
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    return True, f"HTTP {code}"
+
 
 def kill_pid(pid: Optional[int], timeout: float = 5.0) -> bool:
     """Terminate a process by PID (SIGTERM, then force-kill).

@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from termux_mcp import cli, process
+from termux_mcp import cli, config, process
 
 
 @pytest.fixture
@@ -544,3 +544,128 @@ def test_url_warns_when_free_tunnel_is_offline(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "offline" in out
     assert "different URL" in out
+
+# public transport health regressions
+
+def test_public_http_probe_auth_error_is_reachable(monkeypatch):
+    import io
+    import urllib.error
+    def fake_open(*args, **kwargs):
+        raise urllib.error.HTTPError('https://example/mcp', 401, 'Unauthorized', {}, io.BytesIO(b''))
+    monkeypatch.setattr('urllib.request.urlopen', fake_open)
+    assert process.public_http_probe('https://example', timeout=0.1) == (True, 'HTTP 401')
+
+
+def test_public_http_probe_cloudflare_1033_is_unhealthy(monkeypatch):
+    import io
+    import urllib.error
+    def fake_open(*args, **kwargs):
+        raise urllib.error.HTTPError('https://example/mcp', 530, 'error', {}, io.BytesIO(b'error code: 1033'))
+    monkeypatch.setattr('urllib.request.urlopen', fake_open)
+    ok, detail = process.public_http_probe('https://example', timeout=0.1)
+    assert ok is False
+    assert '1033' in detail
+
+
+def test_restart_keep_adopts_external_named_tunnel(monkeypatch, capsys):
+    """Regression: an external/shared cloudflared must be adopted before keep gives up."""
+    state = {"tracked": False, "adopted": [], "cleared_url": 0}
+    monkeypatch.setattr(process, "is_running", lambda: False)
+    monkeypatch.setattr(process, "clear_pid", lambda: None)
+    monkeypatch.setattr(process, "tunnel_is_running", lambda: state["tracked"])
+    monkeypatch.setattr(process, "read_tunnel_pid", lambda: 32328 if state["tracked"] else None)
+    def adopt(config_path, tunnel_name):
+        state["adopted"].append((config_path, tunnel_name))
+        state["tracked"] = True
+        return 32328
+    monkeypatch.setattr(process, "adopt_named_cloudflare_tunnel", adopt)
+    monkeypatch.setattr(cli, "get_public_url", lambda: "https://termux.example")
+    monkeypatch.setattr(cli, "clear_public_url", lambda: state.__setitem__("cleared_url", state["cleared_url"] + 1))
+    monkeypatch.setattr(cli, "cmd_start", lambda args: 0)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    rc = cli.cmd_restart(cli._parse_args(["restart"]))
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert state["adopted"] == [(os.path.expanduser("~/.cloudflared/config.yml"), "termux-mcp")]
+    assert state["cleared_url"] == 0
+    assert "Tunnel kept (pid 32328)" in out
+
+
+def test_save_lan_mode_persists_bind_and_explicit_host(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(config, "_write_config", lambda updates: captured.update(updates))
+    config.save_lan_mode("192.168.1.23")
+    assert captured == {
+        "TERMUX_MCP_LAN_HOST": "192.168.1.23",
+        "TERMUX_MCP_HOST": "0.0.0.0",
+        "TERMUX_MCP_MCP_HOST": "0.0.0.0",
+    }
+
+
+def test_save_lan_mode_empty_restores_localhost(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(config, "_write_config", lambda updates: captured.update(updates))
+    config.save_lan_mode("")
+    assert captured["TERMUX_MCP_LAN_HOST"] == ""
+    assert captured["TERMUX_MCP_HOST"] == "127.0.0.1"
+    assert captured["TERMUX_MCP_MCP_HOST"] == "127.0.0.1"
+
+
+def test_start_lan_persists_detected_ip_before_start(monkeypatch):
+    saved = []
+    monkeypatch.setattr(cli, "_detect_lan_ipv4", lambda: "192.168.1.23")
+    monkeypatch.setattr(config, "save_lan_mode", lambda host="": saved.append(host))
+    monkeypatch.setattr(process, "is_running", lambda: True)
+    args = cli._parse_args(["start", "--lan", "--no-tunnel"])
+    assert cli.cmd_start(args) == 1
+    assert saved == []
+
+
+def test_start_local_only_persists_disable_before_start(monkeypatch):
+    saved = []
+    monkeypatch.setattr(config, "save_lan_mode", lambda host="": saved.append(host))
+    monkeypatch.setattr(process, "is_running", lambda: True)
+    args = cli._parse_args(["start", "--local-only", "--no-tunnel"])
+    assert cli.cmd_start(args) == 1
+    assert saved == []
+
+
+def test_start_lan_refuses_when_ip_detection_fails(monkeypatch):
+    saved = []
+    monkeypatch.setattr(cli, "_detect_lan_ipv4", lambda: "")
+    monkeypatch.setattr(config, "save_lan_mode", lambda host="": saved.append(host))
+    args = cli._parse_args(["start", "--lan", "--no-tunnel"])
+    assert cli.cmd_start(args) == 1
+    assert saved == []
+
+
+def test_select_lan_ipv4_prefers_wifi_over_vpn():
+    text = '''tun0: flags=1\n    inet 172.19.0.1 netmask 255.255.255.0\nap0: flags=1\n    inet 10.23.45.67 netmask 255.255.255.0\n'''
+    assert cli._select_lan_ipv4(text) == '10.23.45.67'
+
+
+def test_select_lan_ipv4_prefers_wifi_over_mobile():
+    text = '''ccmni2: flags=1\n    inet 10.123.161.45 netmask 255.255.255.0\nwlan0: flags=1\n    inet 192.168.31.8 netmask 255.255.255.0\n'''
+    assert cli._select_lan_ipv4(text) == '192.168.31.8'
+
+
+def test_select_lan_ipv4_refuses_vpn_and_mobile_only():
+    text = '''tun0: flags=1\n    inet 172.19.0.1 netmask 255.255.255.0\nrmnet0: flags=1\n    inet 10.8.0.2 netmask 255.255.255.0\n'''
+    assert cli._select_lan_ipv4(text) == ''
+
+
+def test_cmd_start_passes_initialized_token_to_mcp_health(monkeypatch):
+    """Regression: cmd_start must initialize auth before MCP health check."""
+    calls = []
+    monkeypatch.setattr(cli, "ensure_token", lambda: "regression-token")
+    monkeypatch.setattr(process, "is_running", lambda: False)
+    monkeypatch.setattr(process, "start_server", lambda: 4242)
+    monkeypatch.setattr(process, "wait_http", lambda port: True)
+    def fake_mcp(port, token):
+        calls.append((port, token))
+        return True, "initialize OK"
+    monkeypatch.setattr(process, "wait_mcp_initialize", fake_mcp)
+    args = cli._parse_args(["start", "--no-tunnel"])
+    assert cli.cmd_start(args) == 0
+    assert calls == [(cli.MCP_PORT, "regression-token")]

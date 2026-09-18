@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 """Tests for FastMCP transport security (DNS rebinding protection).
 
 Covers: localhost Host always allowed, the current trusted tunnel Host
@@ -22,6 +23,7 @@ from termux_mcp.mcp_server import (
     _apply_public_url,
     _build_mcp_app,
     _host_entries_for_url,
+    _lan_host_entries,
 )
 
 
@@ -97,6 +99,12 @@ def test_host_entries_for_url():
     ]
     assert _host_entries_for_url("not a url") == []
     assert _host_entries_for_url("") == []
+
+
+def test_lan_host_entries_are_explicit_and_never_trust_wildcard_bind():
+    assert _lan_host_entries("192.168.1.23") == ["192.168.1.23", "192.168.1.23:*"]
+    assert _lan_host_entries("0.0.0.0") == []
+    assert _lan_host_entries("127.0.0.1") == []
 
 
 def test_apply_public_url_preserves_localhost_and_replaces_old_host():
@@ -222,3 +230,24 @@ def test_restart_restores_public_url_allowed_host_and_issuer(
         assert oauth.get_resource_url() == "https://abc123.free.pinggy.net/mcp"
     finally:
         config.clear_public_url()
+
+def test_explicit_lan_host_allowed_and_malicious_rejected(isolated_public_url):
+    from termux_mcp import mcp_server
+
+    app = _build_mcp_app()
+    _apply_public_url(mcp_server._transport_security, "", lan_host="192.168.1.23")
+    server, thread, port = _start_server(app)
+    try:
+        assert _raw_status(port, f"192.168.1.23:{port}", token=AUTH_TOKEN) != 421
+        assert _raw_status(port, "192.168.1.99", token=AUTH_TOKEN) == 421
+        assert _raw_status(port, f"127.0.0.1:{port}", token=AUTH_TOKEN) != 421
+    finally:
+        _stop_server(server, thread)
+
+
+def test_apply_public_url_adds_explicit_lan_origin_without_global_wildcard():
+    settings = SimpleNamespace(allowed_hosts=[], allowed_origins=[])
+    _apply_public_url(settings, "", lan_host="192.168.1.23")
+    assert "192.168.1.23" in settings.allowed_origins
+    assert "192.168.1.23:*" in settings.allowed_origins
+    assert "*" not in settings.allowed_origins

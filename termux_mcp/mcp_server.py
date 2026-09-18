@@ -33,21 +33,34 @@ def _host_entries_for_url(url: str) -> list:
     return [host, f"{host}:*"]
 
 
-def _apply_public_url(settings, url: str) -> None:
+def _lan_host_entries(host: str) -> list:
+    """Return DNS-rebinding allowlist entries for an explicit LAN address."""
+    host = (host or "").strip()
+    if not host or host in {"127.0.0.1", "localhost", "::1", "0.0.0.0", "::"}:
+        return []
+    return [host, f"{host}:*"]
+
+
+def _apply_public_url(settings, url: str, lan_host: str = "") -> None:
     entries = list(_LOCALHOST_HOSTS)
+    entries.extend(_lan_host_entries(lan_host))
+    origins = list(_LOCALHOST_ORIGINS)
+    origins.extend(_lan_host_entries(lan_host))
     if url:
         entries.extend(_host_entries_for_url(url))
     settings.allowed_hosts = entries
+    settings.allowed_origins = origins
 
 
 def _watch_public_url(settings) -> None:
     current = None
+    lan_host = getattr(config, "LAN_HOST", "")
     while True:
         try:
             url = config.get_public_url()
             if url != current:
                 current = url
-                _apply_public_url(settings, url)
+                _apply_public_url(settings, url, lan_host=lan_host)
         except Exception:
             pass
         time.sleep(_PUBLIC_URL_POLL_INTERVAL)
@@ -376,7 +389,7 @@ def _build_mcp_app():
     )
     mcp = FastMCP("termux-mcp", json_response=True, transport_security=_transport_security)
     _transport_security = mcp.settings.transport_security
-    _apply_public_url(_transport_security, config.get_public_url())
+    _apply_public_url(_transport_security, config.get_public_url(), lan_host=getattr(config, "LAN_HOST", ""))
 
     mcp.tool(name="run_command")(tool_run_command)
     mcp.tool(name="read_file")(tool_read_file)

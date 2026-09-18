@@ -279,6 +279,8 @@ termux-mcp restart
 |---|---|
 | `termux-mcp start` | 启动服务器 + 自动隧道，打印 MCP URL |
 | `termux-mcp start --no-tunnel` | 只启动本地服务器 |
+| `termux-mcp start --lan --no-tunnel` | 开启并记住局域网模式，自动使用手机当前 LAN IPv4；适合电脑端前端直连 |
+| `termux-mcp start --local-only --no-tunnel` | 关闭局域网模式，恢复仅 localhost |
 | `termux-mcp start --tunnel cloudflare` | 指定隧道启动 |
 | `termux-mcp guide` | 打开适合截图的新手小抄，并根据当前状态提示下一步 |
 | `termux-mcp domain guide` | 自有域名路线检查：cloudflared / 登录 / Named Tunnel / config / 下一步 |
@@ -298,6 +300,24 @@ termux-mcp restart
 | `termux-mcp permissions set full` | 将权限切换为完全控制（重启生效） |
 | `termux-mcp token --show` | 显示 token |
 | `termux-mcp token --rotate` | 更换 token |
+
+### 电脑和手机在同一局域网：不走公网隧道
+
+如果电脑端 AI 前端支持填写 MCP HTTP 地址，并且电脑与手机在同一可信 Wi-Fi，可以直接运行：
+
+```bash
+termux-mcp start --lan --no-tunnel
+```
+
+命令会自动识别手机当前 LAN IPv4、持久化局域网模式，并继续保留 token/OAuth 与 Host/Origin 安全校验。运行 `termux-mcp status` 或 `termux-mcp doctor` 可查看类似 `LAN: enabled — http://192.168.x.x:8765/mcp` 的地址；`doctor` 还会单独显示 `LAN mode` 诊断项。把这个地址填到电脑端即可。不要把 `0.0.0.0` 填进客户端；它只是服务器的监听地址。
+
+不用局域网模式后，恢复默认：
+
+```bash
+termux-mcp start --local-only --no-tunnel
+```
+
+局域网模式不会关闭认证，也不会使用 `*` 放开所有 Host/Origin。只建议在自己信任的局域网中使用；跨网络连接仍使用公网 tunnel。
 
 ### 一键自愈：连接挂了先跑这个
 
