@@ -59,7 +59,7 @@ class AuthProvider(ABC):
     def enabled(self) -> bool:
         """True when this provider enforces authentication."""
 
-    def challenge_headers(self) -> Dict[str, str]:
+    def challenge_headers(self, request_url: Optional[str] = None) -> Dict[str, str]:
         """WWW-Authenticate headers to send on 401."""
         return {"WWW-Authenticate": "Bearer"}
 
@@ -153,13 +153,13 @@ class CompositeAuthProvider(AuthProvider):
                 return result
         return AuthResult(authorized=False)
 
-    def challenge_headers(self) -> Dict[str, str]:
+    def challenge_headers(self, request_url: Optional[str] = None) -> Dict[str, str]:
         from . import oauth
 
         challenge = "Bearer"
         if oauth.oauth_enabled():
             parts = []
-            meta = oauth.get_metadata_url()
+            meta = oauth.get_metadata_url(request_url)
             if meta:
                 parts.append(f'resource_metadata="{meta}"')
             scopes = oauth.get_scopes()

@@ -754,3 +754,43 @@ def test_oauth_survives_server_restart(oauth_config):
     finally:
         if os.path.exists(state_file):
             os.remove(state_file)
+# ── LAN OAuth resource identity ─────────────────────────────────────────────
+
+def test_lan_resource_identity_is_selected_only_for_configured_ingress(oauth_config, monkeypatch):
+    monkeypatch.setattr(config, "LAN_HOST", "10.225.87.105")
+    monkeypatch.setattr(config, "MCP_PORT", 8765)
+
+    lan = "http://10.225.87.105:8765/mcp"
+    assert oauth.get_resource_url(lan) == lan
+    assert oauth.get_metadata_url(lan) == (
+        "http://10.225.87.105:8765/.well-known/oauth-protected-resource/mcp"
+    )
+
+    # Public and untrusted/mismatched ingress must keep the canonical public identity.
+    assert oauth.get_resource_url(f"{ISSUER}/mcp") == f"{ISSUER}/mcp"
+    assert oauth.get_resource_url("http://evil.example:8765/mcp") == f"{ISSUER}/mcp"
+    assert oauth.get_resource_url("http://10.225.87.105:9999/mcp") == f"{ISSUER}/mcp"
+
+
+def test_lan_401_and_metadata_agree_on_resource(oauth_config, monkeypatch):
+    # Exercise a real local HTTP server while treating its exact address as the
+    # configured LAN ingress.  This catches the Cherry Studio mismatch class.
+    app = _build_mcp_app()
+    server, thread, base = _start_server(app)
+    try:
+        parsed = urlparse(base)
+        monkeypatch.setattr(config, "LAN_HOST", parsed.hostname)
+        monkeypatch.setattr(config, "MCP_PORT", parsed.port)
+        lan_resource = base + "/mcp"
+        metadata_url = base + "/.well-known/oauth-protected-resource/mcp"
+
+        r = httpx.post(lan_resource, json={})
+        assert r.status_code == 401
+        assert f'resource_metadata="{metadata_url}"' in r.headers["www-authenticate"]
+
+        meta = httpx.get(metadata_url)
+        assert meta.status_code == 200
+        assert meta.json()["resource"] == lan_resource
+        assert meta.json()["authorization_servers"][0].rstrip("/") == ISSUER
+    finally:
+        _stop_server(server, thread)

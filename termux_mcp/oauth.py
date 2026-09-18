@@ -81,8 +81,23 @@ def get_issuer() -> Optional[str]:
     return pub.rstrip("/") if pub else None
 
 
-def get_resource_url() -> Optional[str]:
-    """Externally visible MCP resource URL (https://host/mcp), or None."""
+def get_lan_resource_url() -> Optional[str]:
+    """Configured LAN MCP resource URL, or None when LAN mode is disabled."""
+    host = config.LAN_HOST.strip()
+    if not host:
+        return None
+    return f"http://{host}:{config.MCP_PORT}/mcp"
+
+
+def get_resource_url(request_url: Optional[str] = None) -> Optional[str]:
+    """Return resource identity for public or explicitly configured LAN ingress."""
+    if request_url:
+        parsed = urlparse(str(request_url))
+        lan = get_lan_resource_url()
+        if lan:
+            lp = urlparse(lan)
+            if parsed.scheme == lp.scheme and parsed.netloc == lp.netloc:
+                return lan
     pub = get_public_url()
     if pub:
         return pub + "/mcp"
@@ -92,9 +107,9 @@ def get_resource_url() -> Optional[str]:
     return None
 
 
-def get_metadata_url() -> Optional[str]:
-    """RFC 9728 protected-resource metadata URL for this MCP resource."""
-    resource = get_resource_url()
+def get_metadata_url(request_url: Optional[str] = None) -> Optional[str]:
+    """RFC 9728 protected-resource metadata URL for the selected ingress."""
+    resource = get_resource_url(request_url)
     if not resource:
         return None
     parsed = urlparse(resource)
@@ -405,7 +420,7 @@ class _DynamicProtectedResourceHandler:
         from mcp.server.auth.json_response import PydanticJSONResponse
         from mcp.shared.auth import ProtectedResourceMetadata
 
-        resource = get_resource_url()
+        resource = get_resource_url(str(request.url))
         issuer = get_issuer()
         if not resource or not issuer:
             return JSONResponse({"error": "not_found"}, status_code=404)

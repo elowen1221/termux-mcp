@@ -445,7 +445,7 @@ def _build_mcp_app():
                 if result.authorized:
                     return await call_next(request)
                 return JSONResponse({"error": "Unauthorized"}, status_code=401,
-                                    headers=auth.challenge_headers())
+                                    headers=auth.challenge_headers(str(request.url)))
         app.add_middleware(_AuthMiddleware)
     return app
 
