@@ -77,6 +77,20 @@ final class BridgeHttpServer {
                         app.put("exception", error.getClass().getSimpleName());
                         respond(out,409,envelope(false,"launch request rejected",app));
                     }
+                } else if (path.equals("/v1/gadgetbridge/probe")) {
+                    JSONObject data = new JSONObject();
+                    try {
+                        context.getPackageManager().getPackageInfo("nodomain.freeyourgadget.gadgetbridge", 0);
+                        data.put("package_visible", true);
+                    } catch (Throwable error) { data.put("package_visible", false); data.put("package_error", error.getClass().getSimpleName()); }
+                    Intent probe = new Intent("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC");
+                    probe.setPackage("nodomain.freeyourgadget.gadgetbridge");
+                    List<ResolveInfo> receivers = context.getPackageManager().queryBroadcastReceivers(probe, PackageManager.MATCH_ALL);
+                    data.put("receiver_count", receivers.size());
+                    JSONArray names = new JSONArray();
+                    for (ResolveInfo r : receivers) if (r.activityInfo != null) names.put(r.activityInfo.name);
+                    data.put("receivers", names);
+                    respond(out,200,envelope(true,null,data));
                 } else if (path.equals("/v1/gadgetbridge/sync")) {
                     Intent sync = new Intent("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC");
                     sync.setPackage("nodomain.freeyourgadget.gadgetbridge");
