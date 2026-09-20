@@ -56,7 +56,7 @@ final class BridgeHttpServer {
                 if (!BridgeToken.matches(context, token)) { respond(out, 401, json(false, "unauthorized")); return; }
                 WalnutAccessibilityService service = WalnutAccessibilityService.get();
                 if (path.equals("/v1/status")) {
-                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName); data.put("port", PORT);
+                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName); data.put("port", PORT); data.put("server_build", context.getPackageManager().getPackageInfo(context.getPackageName(),0).longVersionCode); data.put("server_started_at_ms", BridgeState.at(context)); data.put("server_state", BridgeState.status(context)); data.put("server_error", BridgeState.error(context));
                     respond(out, 200, envelope(true, null, data));
                 } else if (path.equals("/v1/apps")) {
                     respond(out, 200, envelope(true, null, new JSONArray(launcherApps())));
