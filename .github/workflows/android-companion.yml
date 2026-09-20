@@ -23,7 +23,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # setup-android@v3 currently asks sdkmanager for the removed legacy 'tools' package.
+      # GitHub's ubuntu runner already provides ANDROID_HOME + sdkmanager; install only what we need.
       - name: Install Android SDK 36
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - name: Install Gradle
