@@ -24,3 +24,9 @@ config.env
 
 node_modules/
 relay-worker/.wrangler/
+
+# Local scratch / diagnostics / backups (never commit)
+/.local-work/
+/.local-backups/
+/.local-archive/
+/walnut-test.txt

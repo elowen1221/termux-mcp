@@ -91,6 +91,17 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
 
     sub.add_parser("status", help="Show server / tunnel / auth status")
+    p_components = sub.add_parser("components", help="Inspect the local component registry")
+    components_sub = p_components.add_subparsers(dest="components_action", required=True)
+    components_sub.add_parser("list", help="List registered component IDs")
+    p_ci = components_sub.add_parser("inspect", help="Inspect one registered component")
+    p_ci.add_argument("component")
+    components_sub.add_parser("reconcile", help="Compare desired and actual component state")
+    components_sub.add_parser("topology", help="Show component topology and desired/actual state")
+    p_cr = components_sub.add_parser("recover-plan", help="Show the registered recovery policy without executing it")
+    p_cr.add_argument("component")
+    p_cre = components_sub.add_parser("recover", help="Execute a registered recovery policy")
+    p_cre.add_argument("component")
     sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
     sub.add_parser("guide", help="Show a beginner cheat sheet and the next connection step")
 
@@ -823,6 +834,35 @@ def run(argv: Optional[List[str]] = None) -> int:
         return cmd_restart(args)
     if args.command == "status":
         return cmd_status()
+    if args.command == "components":
+        from . import governance
+        cs = governance.load_registry()
+        if args.components_action == "list":
+            for name in cs: print(name)
+            return 0
+        if args.components_action == "inspect":
+            if args.component not in cs:
+                print(f"Unknown component: {args.component}", file=sys.stderr); return 2
+            print(json.dumps(governance.inspect_component(args.component, cs), indent=2, ensure_ascii=False)); return 0
+        if args.components_action == "topology":
+            for row in governance.topology(cs):
+                deps = ",".join(row["depends_on"]) or "-"
+                mark = "DRIFT" if row["drift"] else "OK"
+                print(f'{row["id"]:26} {row["actual"]:7} desired={row["desired"]:7} owner={row["owner"]} deps={deps} {mark}')
+            return 0
+        if args.components_action in ("recover-plan", "recover"):
+            if args.component not in cs:
+                print(f"Unknown component: {args.component}", file=sys.stderr); return 2
+            execute = args.components_action == "recover"
+            result = governance.recover_component(args.component, cs, execute=execute)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            if execute and not result.get("allowed"): return 3
+            return int(result.get("returncode",0))
+        rows = governance.reconcile(cs)
+        for row in rows:
+            mark = "DRIFT" if row["drift"] else "OK"
+            print(f'{row["id"]:26} desired={row["desired"]:7} actual={row["actual"]:7} {mark}')
+        return 1 if any(r["drift"] for r in rows) else 0
     if args.command == "url":
         return cmd_url()
     if args.command == "guide":
