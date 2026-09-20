@@ -56,7 +56,7 @@ final class BridgeHttpServer {
                 if (!BridgeToken.matches(context, token)) { respond(out, 401, json(false, "unauthorized")); return; }
                 WalnutAccessibilityService service = WalnutAccessibilityService.get();
                 if (path.equals("/v1/status")) {
-                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", "0.4.2"); data.put("port", PORT);
+                    JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName); data.put("port", PORT);
                     respond(out, 200, envelope(true, null, data));
                 } else if (path.equals("/v1/apps")) {
                     respond(out, 200, envelope(true, null, new JSONArray(launcherApps())));
@@ -77,6 +77,16 @@ final class BridgeHttpServer {
                         app.put("exception", error.getClass().getSimpleName());
                         respond(out,409,envelope(false,"launch request rejected",app));
                     }
+                } else if (path.equals("/v1/gadgetbridge/sync")) {
+                    Intent sync = new Intent("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC");
+                    sync.setPackage("nodomain.freeyourgadget.gadgetbridge");
+                    String dataTypesHex = body.optString("dataTypesHex", "0x000002e1");
+                    sync.putExtra("dataTypesHex", dataTypesHex);
+                    context.sendBroadcast(sync);
+                    JSONObject data = new JSONObject(); data.put("requested", true); data.put("dataTypesHex", dataTypesHex);
+                    respond(out,202,envelope(true,null,data));
+                } else if (path.equals("/v1/gadgetbridge/event")) {
+                    respond(out,200,envelope(true,null,GadgetbridgeReceiver.lastEvent()));
                 } else if (path.equals("/v1/context")) {
                     if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     respond(out,200,envelope(true,null,service.currentContext()));
