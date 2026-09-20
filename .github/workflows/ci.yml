@@ -41,5 +41,7 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Ruff
         run: ruff check --select E9,F63,F7,F82 termux_mcp tests
+      - name: Release metadata gate
+        run: python scripts/release-gate.py
       - name: Bash syntax
         run: bash -n scripts/install.sh scripts/bootstrap.sh scripts/termux-mcp-heal.sh add-repo.sh
