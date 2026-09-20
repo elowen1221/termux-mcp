@@ -233,6 +233,14 @@ def _wait_for_package(package: str, timeout_ms: int = 1500) -> bool:
         time.sleep(0.1)
     return False
 
+def gadgetbridge_sync(data_types_hex: str = "0x000003e1") -> dict:
+    result = _accessibility("/v1/gadgetbridge/sync", {"dataTypesHex": data_types_hex})
+    return result or {"ok": False, "error": "android accessibility bridge unavailable"}
+
+def gadgetbridge_event() -> dict:
+    result = _accessibility("/v1/gadgetbridge/event")
+    return result or {"ok": False, "error": "android accessibility bridge unavailable"}
+
 def open_app(package: str) -> dict:
     query = package.strip()
     if not query:

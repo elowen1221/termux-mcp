@@ -80,7 +80,7 @@ final class BridgeHttpServer {
                 } else if (path.equals("/v1/gadgetbridge/sync")) {
                     Intent sync = new Intent("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC");
                     sync.setPackage("nodomain.freeyourgadget.gadgetbridge");
-                    String dataTypesHex = body.optString("dataTypesHex", "0x000002e1");
+                    String dataTypesHex = body.optString("dataTypesHex", "0x000003e1");
                     sync.putExtra("dataTypesHex", dataTypesHex);
                     context.sendBroadcast(sync);
                     JSONObject data = new JSONObject(); data.put("requested", true); data.put("dataTypesHex", dataTypesHex);

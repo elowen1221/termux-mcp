@@ -7,6 +7,7 @@ import org.json.JSONObject;
 
 public final class GadgetbridgeReceiver extends BroadcastReceiver {
     private static volatile JSONObject lastEvent;
+    private static volatile long eventCount;
     @Override public void onReceive(Context context, Intent intent) {
         JSONObject event = new JSONObject();
         try {
@@ -18,10 +19,11 @@ public final class GadgetbridgeReceiver extends BroadcastReceiver {
                 event.put("extras", extras);
             }
         } catch (Exception ignored) {}
-        lastEvent = event;
+        lastEvent = event; eventCount++;
     }
     static JSONObject lastEvent() {
-        JSONObject event = lastEvent;
-        return event == null ? new JSONObject() : event;
+        JSONObject out = new JSONObject();
+        try { out.put("count", eventCount); out.put("event", lastEvent == null ? JSONObject.NULL : lastEvent); } catch (Exception ignored) {}
+        return out;
     }
 }
