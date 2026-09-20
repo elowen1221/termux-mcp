@@ -25,3 +25,6 @@ The format follows Keep a Changelog conventions and the public product uses Sema
 ## Historical note
 
 The public fork currently reports package version `0.10.2`, while its `origin` release tags visible at lifecycle adoption end at `v0.8.4`. This mismatch is treated as historical state, not silently rewritten. The next public release must explicitly establish a new release baseline.
+
+### Incubating update CLI
+- Added a read-only `termux-mcp update check` prototype that discovers only this fork's public product tags and never proposes a downgrade when installed code is ahead of the historical release baseline.

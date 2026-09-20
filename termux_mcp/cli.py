@@ -114,6 +114,11 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Emit a machine-readable diagnostic report",
     )
 
+    p_update = sub.add_parser("update", help="Check and apply stable Termux-MCP releases")
+    update_sub = p_update.add_subparsers(dest="update_action", required=True)
+    p_update_check = update_sub.add_parser("check", help="Check origin for a newer stable release without changing anything")
+    p_update_check.add_argument("--json", action="store_true", dest="json_output")
+
     p_token = sub.add_parser("token", help="Manage the auth token")
     p_token.add_argument("--show", action="store_true", help="Print the full token")
     p_token.add_argument("--rotate", action="store_true", help="Generate a new token")
@@ -871,6 +876,26 @@ def run(argv: Optional[List[str]] = None) -> int:
         return cmd_logs(args)
     if args.command == "doctor":
         return cmd_doctor(args.json_output)
+    if args.command == "update":
+        if args.update_action == "check":
+            from .update_discovery import check_updates
+            try:
+                result = check_updates(__version__)
+            except Exception as exc:
+                if args.json_output:
+                    print(json.dumps({"installed": __version__, "status": "check_failed", "error": str(exc)}, ensure_ascii=False))
+                else:
+                    print(f"Installed: {__version__}")
+                    print(f"Update check failed: {exc}")
+                return 2
+            if args.json_output:
+                print(json.dumps(result.as_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(f"Installed:      {result.installed}")
+                print(f"Latest release: {result.latest_tag or 'none'}")
+                print(f"Status:         {result.status}")
+                print(result.detail)
+            return 0
     if args.command == "token":
         return cmd_token(args)
     if args.command == "setup":
