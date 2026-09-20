@@ -1,0 +1,11 @@
+{
+  "product": "termux-mcp",
+  "version": "0.12.0",
+  "tag": "v0.12.0",
+  "channel": "stable",
+  "release_state": "candidate",
+  "config_schema": 1,
+  "migration": null,
+  "update_mode": "check-only",
+  "notes": "Establishes this fork's public release baseline and read-only update discovery. Automatic apply/rollback remains disabled."
+}

@@ -28,7 +28,8 @@ local work that is ready for review.
 - [x] preserve installer output in an actionable local log
 - [x] run tests and critical static checks in GitHub Actions
 - [ ] add targeted repair suggestions for package, PATH, port, tunnel, and permission failures
-- [ ] add `termux-mcp update` with clean-tree checks and post-update rollback
+- [x] add read-only `termux-mcp update check` with fork-scoped stable release discovery
+- [ ] expose transactional `termux-mcp update apply/rollback` after managed-install and release-artifact validation
 - [ ] add an uninstall command that preserves user configuration by default
 - [ ] verify bootstrap behavior on interrupted and repeated installations
 - [ ] test F-Droid and GitHub Termux builds on Android 12, 14, and 16

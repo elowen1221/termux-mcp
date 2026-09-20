@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "termux-mcp"
-version = "0.10.2"
+version = "0.12.0"
 description = "Termux AI gateway with REST and MCP — let AI agents safely interact with your Android device in real time"
 readme = "README.md"
 license = {text = "AGPL-3.0"}

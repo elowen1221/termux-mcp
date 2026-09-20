@@ -294,6 +294,8 @@ termux-mcp restart
 | `termux-mcp logs` | 查看日志（`-n 100` 看更多） |
 | `termux-mcp doctor` | 自检（PASS/WARN/FAIL） |
 | `termux-mcp doctor --json` | 输出适合脚本与监控读取的结构化诊断结果 |
+| `termux-mcp update check` | 只读检查本 fork 的最新稳定版本；不会安装、降级或修改配置 |
+| `termux-mcp update check --json` | 以 JSON 输出当前版本、最新 release 与更新状态 |
 | `termux-mcp-heal` | 一键检查本地 MCP + Cloudflare Named Tunnel；能修就自动修，修不了就打印关键日志 |
 | `termux-mcp setup` | 重新运行首次连接向导 |
 | `termux-mcp permissions` | 查看当前 AI 权限 |

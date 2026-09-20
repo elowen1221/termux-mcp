@@ -7,8 +7,7 @@ The format follows Keep a Changelog conventions and the public product uses Sema
 ## [Unreleased]
 
 ### Added
-- Release lifecycle policy and version-consistency gate.
-- Component governance model for local operability work (currently incubating before public promotion).
+- Nothing yet.
 
 ### Changed
 - Nothing yet.
@@ -16,15 +15,20 @@ The format follows Keep a Changelog conventions and the public product uses Sema
 ### Fixed
 - Nothing yet.
 
+## [0.12.0] - release candidate
+
+### Added
+- Read-only `termux-mcp update check` and `--json` output for stable release discovery.
+- Release lifecycle policy, canonical version checks, CI release metadata gate, and configuration schema tracking.
+- Component governance and operability model for explicit owners, desired state, topology, and recovery policy.
+- Transactional update foundation: persistent-state snapshots, application snapshots, known-good state, managed-install guard, manifests, and coordinator rollback tests.
+
 ### Migration
-- No configuration migration declared yet.
+- Configuration schema remains at `1`; no migration is required for this release candidate.
 
 ### Rollback
-- No release has been cut from this section yet.
+- Automatic update apply/rollback is not exposed to users in 0.12.0. This release only exposes update detection; existing installation/recovery procedures remain unchanged.
 
 ## Historical note
 
-The public fork currently reports package version `0.10.2`, while its `origin` release tags visible at lifecycle adoption end at `v0.8.4`. This mismatch is treated as historical state, not silently rewritten. The next public release must explicitly establish a new release baseline.
-
-### Incubating update CLI
-- Added a read-only `termux-mcp update check` prototype that discovers only this fork's public product tags and never proposes a downgrade when installed code is ahead of the historical release baseline.
+Before 0.12.0, the public fork reported package version `0.10.2`, while its `origin` product tags visible at lifecycle adoption ended at `v0.8.4`. The 0.12.0 release is intended to establish a deliberate new public baseline without rewriting that history.
