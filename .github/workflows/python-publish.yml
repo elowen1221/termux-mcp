@@ -9,8 +9,9 @@
 name: Upload Python Package
 
 on:
-  release:
-    types: [published]
+  # PyPI trusted publishing is not enabled for this fork yet. Keep package
+  # publishing manual so a GitHub Release cannot accidentally trigger it.
+  workflow_dispatch:
 
 permissions:
   contents: read

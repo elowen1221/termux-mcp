@@ -15,7 +15,7 @@ The format follows Keep a Changelog conventions and the public product uses Sema
 ### Fixed
 - Nothing yet.
 
-## [0.12.0] - release candidate
+## [0.12.0] - 2026-09-20
 
 ### Added
 - Read-only `termux-mcp update check` and `--json` output for stable release discovery.

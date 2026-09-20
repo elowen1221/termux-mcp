@@ -3,7 +3,7 @@
   "version": "0.12.0",
   "tag": "v0.12.0",
   "channel": "stable",
-  "release_state": "candidate",
+  "release_state": "released",
   "config_schema": 1,
   "migration": null,
   "update_mode": "check-only",
