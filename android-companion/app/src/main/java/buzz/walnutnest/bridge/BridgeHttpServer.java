@@ -65,7 +65,18 @@ final class BridgeHttpServer {
                     if(app==null){respond(out,404,json(false,"launcher app not found"));return;}
                     String pkg=app.getString("package"); Intent launch=context.getPackageManager().getLaunchIntentForPackage(pkg);
                     if(launch==null){respond(out,404,json(false,"launcher intent unavailable"));return;}
-                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(launch); respond(out,200,envelope(true,null,app));
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                    try {
+                        context.startActivity(launch);
+                        app.put("launch_requested", true);
+                        // startActivity() returning is not proof that Android actually foregrounded
+                        // the target app. The Termux client verifies foreground context separately.
+                        respond(out,202,envelope(true,null,app));
+                    } catch (Throwable error) {
+                        app.put("launch_requested", false);
+                        app.put("exception", error.getClass().getSimpleName());
+                        respond(out,409,envelope(false,"launch request rejected",app));
+                    }
                 } else if (path.equals("/v1/context")) {
                     if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     respond(out,200,envelope(true,null,service.currentContext()));
