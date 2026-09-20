@@ -23,10 +23,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      # setup-android@v3 currently asks sdkmanager for the removed legacy 'tools' package.
-      # GitHub's ubuntu runner already provides ANDROID_HOME + sdkmanager; install only what we need.
+      - name: Set up Android command-line tools
+        run: |
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager; fi
+          test -x "$SDKMANAGER"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
       - name: Install Android SDK 36
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+        run: "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0'
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
