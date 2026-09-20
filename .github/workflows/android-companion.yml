@@ -30,7 +30,8 @@ jobs:
           test -x "$SDKMANAGER"
           echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
       - name: Install Android SDK 36
-        run: "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0'
+        run: |
+          "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0'
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
