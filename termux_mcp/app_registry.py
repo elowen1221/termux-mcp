@@ -130,8 +130,12 @@ def discover(app_id: str, registry: dict | None=None, max_depth: int=8) -> dict:
         if not (text or desc or view_id): continue
         role='content'
         hay=' '.join(str(x) for x in (text,desc,view_id) if x).casefold()
-        if any(x in hay for x in ('搜索','search')): role='search'
-        elif any(x in hay for x in ('点赞','赞','like')): role='like'
-        elif any(x in hay for x in ('收藏','favorite','collect')): role='favorite'
+        clickable=bool(n.get('clickable'))
+        # Semantic actions must describe an actionable control, not merely content
+        # containing counters such as '535赞'.  This avoids classifying whole feed
+        # cards as like buttons.
+        if clickable and any(x in hay for x in ('搜索','search')): role='search'
+        elif clickable and any(x in hay for x in ('点赞','like')): role='like'
+        elif clickable and any(x in hay for x in ('收藏','favorite','collect')): role='favorite'
         targets.append({'role':role,**n,'text':text,'desc':desc})
     return {'ok':True,'id':app_id,'label':app.get('label'),'package':app['package'],'targets':targets,'count':len(targets)}

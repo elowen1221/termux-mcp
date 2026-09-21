@@ -35,7 +35,7 @@ def test_act_like_uses_selector(monkeypatch):
  out=a.act('xhs','like',desc='赞',registry=registry()); assert out['ok'] and out['result']['data']['desc']=='赞'
 def test_discover_classifies_semantic_targets(monkeypatch):
  monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
- monkeypatch.setattr(a.android_bridge,'current_ui',lambda depth:{'ok':True,'data':{'children':[{'desc':'搜索','id':'search'},{'desc':'赞 12','id':'like_btn'},{'text':'一条笔记'}]}})
+ monkeypatch.setattr(a.android_bridge,'current_ui',lambda depth:{'ok':True,'data':{'children':[{'desc':'搜索','id':'search','clickable':True},{'desc':'点赞','id':'like_btn','clickable':True},{'text':'一条笔记'}]}})
  out=a.discover('xhs',registry()); assert [x['role'] for x in out['targets']]==['search','like','content']
 def test_discover_refuses_other_foreground(monkeypatch):
  monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.openai.chatgpt'}})
@@ -49,3 +49,7 @@ def test_act_search_clicks_semantic_selector(monkeypatch):
  monkeypatch.setattr(a.android_bridge,'click_selector',lambda **kwargs:{'ok':True,'data':kwargs})
  r=registry(); r['xhs']['capabilities'].append('search')
  out=a.act('xhs','search',desc='搜索',registry=r); assert out['ok'] and out['result']['data']['desc']=='搜索'
+def test_discover_does_not_treat_like_count_as_like_button(monkeypatch):
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
+ monkeypatch.setattr(a.android_bridge,'current_ui',lambda depth:{'ok':True,'data':{'children':[{'class':'android.widget.FrameLayout','desc':'笔记 一个标题 来自用户 535赞','clickable':False},{'class':'android.widget.Button','desc':'点赞','clickable':True}]}})
+ out=a.discover('xhs',registry()); assert [x['role'] for x in out['targets']]==['content','like']
