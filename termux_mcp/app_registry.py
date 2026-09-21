@@ -37,3 +37,22 @@ def doctor(app_id: str, registry: dict | None=None) -> dict:
             'driver':app.get('driver'),'bridge':bridge,'installed':installed,'matched':matched,
             'ready':bool(installed and bridge.get('accessibility_ready')),
             'capabilities':app.get('capabilities',[]),'permissions':app.get('permissions',{})}
+
+SAFE_READ_ACTIONS = {'launch','search','browse','inspect_product','read_reviews','inspect_post'}
+
+def authorize(app_id: str, action: str, registry: dict | None=None) -> dict:
+    app=inspect(app_id,registry)
+    if action not in app.get('capabilities',[]):
+        return {'allowed':False,'decision':'deny','reason':'capability is not registered'}
+    policy=app.get('permissions',{}).get(action)
+    if policy == 'deny': return {'allowed':False,'decision':'deny','reason':'permission policy denies action'}
+    if policy == 'ask': return {'allowed':False,'decision':'ask','reason':'explicit user confirmation required'}
+    if policy == 'allow': return {'allowed':True,'decision':'allow'}
+    if action in SAFE_READ_ACTIONS: return {'allowed':True,'decision':'allow','reason':'registered read-only capability'}
+    return {'allowed':False,'decision':'deny','reason':'no explicit permission for state-changing action'}
+
+def launch(app_id: str, registry: dict | None=None) -> dict:
+    app=inspect(app_id,registry); auth=authorize(app_id,'launch',registry)
+    if not auth['allowed']: return {'ok':False,'id':app_id,'authorization':auth}
+    result=android_bridge.open_app(app['package'])
+    return {'ok':bool(result.get('opened')),'id':app_id,'authorization':auth,'result':result}

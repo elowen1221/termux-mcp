@@ -110,6 +110,10 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p_as.add_argument("app")
     p_ad = apps_sub.add_parser("doctor", help="Check Android bridge and installation readiness for one app")
     p_ad.add_argument("app")
+    p_aa = apps_sub.add_parser("authorize", help="Explain whether a registered app action is allowed")
+    p_aa.add_argument("app"); p_aa.add_argument("action")
+    p_ax = apps_sub.add_parser("launch", help="Launch a registered Android app through its declared driver")
+    p_ax.add_argument("app")
     sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
     sub.add_parser("guide", help="Show a beginner cheat sheet and the next connection step")
 
@@ -856,6 +860,10 @@ def run(argv: Optional[List[str]] = None) -> int:
                 print(json.dumps(app_registry.inspect(args.app), indent=2, ensure_ascii=False)); return 0
             if args.apps_action == "doctor":
                 result=app_registry.doctor(args.app); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ready") else 1
+            if args.apps_action == "authorize":
+                result=app_registry.authorize(args.app,args.action); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("allowed") else 1
+            if args.apps_action == "launch":
+                result=app_registry.launch(args.app); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ok") else 1
         except KeyError as exc:
             print(f"Unknown app: {exc.args[0]}", file=sys.stderr); return 2
 
