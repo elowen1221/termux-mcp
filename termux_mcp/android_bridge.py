@@ -284,14 +284,18 @@ def open_app(package: str) -> dict:
     )
     component = resolved.stdout.strip().splitlines()[-1] if resolved.returncode == 0 and resolved.stdout.strip() else ""
     if "/" not in component:
-        return {"opened": False, "package": resolved_package, "error": resolved.stderr.strip() or "launcher activity not found", "verified_foreground": False}
+        companion_requested = bool(companion and companion.get("ok"))
+        return {"opened": False, "package": resolved_package, "error": resolved.stderr.strip() or "launcher activity not found", "verified_foreground": False,
+                "launch_requested": companion_requested,
+                "limitation": "android_background_activity_start" if companion_requested else None,
+                "hint": "Bring the app to foreground manually or configure a privileged launcher such as rish." if companion_requested else None}
     started = _remote(f"am start -n {component}")
     verified = started.returncode == 0 and _wait_for_package(resolved_package)
+    companion_requested = bool(companion and companion.get("ok"))
     return {
-        "opened": verified,
-        "package": resolved_package,
-        "component": component,
-        "stdout": started.stdout.strip(),
-        "error": None if verified else (started.stderr.strip() or "launch was not observed in foreground"),
-        "verified_foreground": verified,
+        "opened": verified, "package": resolved_package, "component": component, "stdout": started.stdout.strip(),
+        "error": None if verified else (started.stderr.strip() or "launch was not observed in foreground"), "verified_foreground": verified,
+        "launch_requested": companion_requested,
+        "limitation": "android_background_activity_start" if (companion_requested and not verified) else None,
+        "hint": "Bring the app to foreground manually or configure a privileged launcher such as rish." if (companion_requested and not verified) else None,
     }
