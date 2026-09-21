@@ -118,6 +118,8 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p_ab.add_argument("app"); p_ab.add_argument("--depth", type=int, default=8)
     p_act = apps_sub.add_parser("act", help="Perform a governed semantic action in the foreground app")
     p_act.add_argument("app"); p_act.add_argument("action"); p_act.add_argument("--text", default=""); p_act.add_argument("--view-id", default=""); p_act.add_argument("--desc", default=""); p_act.add_argument("--index", type=int, default=0)
+    p_disc = apps_sub.add_parser("discover", help="Discover semantic targets in the foreground registered app without acting")
+    p_disc.add_argument("app"); p_disc.add_argument("--depth", type=int, default=8)
     sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
     sub.add_parser("guide", help="Show a beginner cheat sheet and the next connection step")
 
@@ -872,6 +874,8 @@ def run(argv: Optional[List[str]] = None) -> int:
                 result=app_registry.browse(args.app,max_depth=args.depth); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ok") else 1
             if args.apps_action == "act":
                 result=app_registry.act(args.app,args.action,text=args.text,view_id=args.view_id,desc=args.desc,index=args.index); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ok") else 1
+            if args.apps_action == "discover":
+                result=app_registry.discover(args.app,max_depth=args.depth); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ok") else 1
         except KeyError as exc:
             print(f"Unknown app: {exc.args[0]}", file=sys.stderr); return 2
 

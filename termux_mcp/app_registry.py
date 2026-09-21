@@ -109,3 +109,23 @@ def act(app_id: str, action: str, *, text: str='', view_id: str='', desc: str=''
         result=android_bridge.click_selector(text=text,view_id=view_id,desc=desc,index=index)
         return {'ok':bool(result.get('ok')),'id':app_id,'action':action,'authorization':auth,'result':result}
     return {'ok':False,'id':app_id,'action':action,'authorization':auth,'error':'no governed adapter is implemented for this action'}
+
+def discover(app_id: str, registry: dict | None=None, max_depth: int=8) -> dict:
+    """Return useful semantic targets without acting on them."""
+    app,error=_require_foreground(app_id,registry)
+    if error: return error
+    ui=android_bridge.current_ui(max_depth)
+    if not ui.get('ok'): return {'ok':False,'id':app_id,'ui':ui}
+    nodes=_flatten_ui(ui.get('data',{})); targets=[]
+    for n in nodes:
+        text=n.get('text'); desc=n.get('desc'); view_id=n.get('id')
+        if text in (None,'null'): text=None
+        if desc in (None,'null'): desc=None
+        if not (text or desc or view_id): continue
+        role='content'
+        hay=' '.join(str(x) for x in (text,desc,view_id) if x).casefold()
+        if any(x in hay for x in ('搜索','search')): role='search'
+        elif any(x in hay for x in ('点赞','赞','like')): role='like'
+        elif any(x in hay for x in ('收藏','favorite','collect')): role='favorite'
+        targets.append({'role':role,**n,'text':text,'desc':desc})
+    return {'ok':True,'id':app_id,'label':app.get('label'),'package':app['package'],'targets':targets,'count':len(targets)}
