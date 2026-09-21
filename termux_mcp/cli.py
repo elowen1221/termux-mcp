@@ -114,6 +114,8 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p_aa.add_argument("app"); p_aa.add_argument("action")
     p_ax = apps_sub.add_parser("launch", help="Launch a registered Android app through its declared driver")
     p_ax.add_argument("app")
+    p_ab = apps_sub.add_parser("browse", help="Read the visible semantic UI of a registered app")
+    p_ab.add_argument("app"); p_ab.add_argument("--depth", type=int, default=8)
     sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
     sub.add_parser("guide", help="Show a beginner cheat sheet and the next connection step")
 
@@ -864,6 +866,8 @@ def run(argv: Optional[List[str]] = None) -> int:
                 result=app_registry.authorize(args.app,args.action); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("allowed") else 1
             if args.apps_action == "launch":
                 result=app_registry.launch(args.app); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ok") else 1
+            if args.apps_action == "browse":
+                result=app_registry.browse(args.app,max_depth=args.depth); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ok") else 1
         except KeyError as exc:
             print(f"Unknown app: {exc.args[0]}", file=sys.stderr); return 2
 

@@ -56,3 +56,34 @@ def launch(app_id: str, registry: dict | None=None) -> dict:
     if not auth['allowed']: return {'ok':False,'id':app_id,'authorization':auth}
     result=android_bridge.open_app(app['package'])
     return {'ok':bool(result.get('opened')),'id':app_id,'authorization':auth,'result':result}
+
+def _flatten_ui(node) -> list[dict]:
+    out=[]
+    if isinstance(node,dict):
+        if any(k in node for k in ('text','desc','bounds','clickable','editable')):
+            out.append({k:node.get(k) for k in ('class','text','desc','id','bounds','clickable','editable') if k in node})
+        for child in node.get('children',[]) if isinstance(node.get('children'),list) else []:
+            out.extend(_flatten_ui(child))
+    elif isinstance(node,list):
+        for child in node: out.extend(_flatten_ui(child))
+    return out
+
+def browse(app_id: str, registry: dict | None=None, max_depth: int=8) -> dict:
+    auth=authorize(app_id,'browse',registry)
+    if not auth['allowed']: return {'ok':False,'id':app_id,'authorization':auth}
+    app=inspect(app_id,registry); ctx=android_bridge.current_context()
+    package=(ctx.get('data') or {}).get('package') if ctx.get('ok') else None
+    if package != app['package']:
+        opened=launch(app_id,registry)
+        if not opened.get('ok'): return {'ok':False,'id':app_id,'authorization':auth,'launch':opened}
+    ui=android_bridge.current_ui(max_depth)
+    if not ui.get('ok'): return {'ok':False,'id':app_id,'authorization':auth,'ui':ui}
+    nodes=_flatten_ui(ui.get('data',{}))
+    visible=[]
+    for n in nodes:
+        text=n.get('text'); desc=n.get('desc')
+        if text in (None,'null'): text=None
+        if desc in (None,'null'): desc=None
+        if text or desc: visible.append({**n,'text':text,'desc':desc})
+    return {'ok':True,'id':app_id,'label':app.get('label'),'package':app['package'],
+            'authorization':auth,'items':visible,'count':len(visible)}

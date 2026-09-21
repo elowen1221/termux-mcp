@@ -15,3 +15,11 @@ def test_authorize_like_explicit_allow(): assert a.authorize('xhs','like',regist
 def test_launch_uses_registered_package(monkeypatch):
  monkeypatch.setattr(a.android_bridge,'open_app',lambda package:{'opened':True,'package':package})
  out=a.launch('pdd',registry()); assert out['ok'] and out['result']['package']=='com.xunmeng.pinduoduo'
+def test_flatten_ui_extracts_visible_nodes():
+ tree={'class':'root','children':[{'text':'hello','desc':'null','bounds':[1,2,3,4],'children':[]}]}
+ assert a._flatten_ui(tree)[0]['text']=='hello'
+def test_browse_returns_semantic_ui(monkeypatch):
+ r=registry(); r['xhs']['capabilities'].append('browse')
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
+ monkeypatch.setattr(a.android_bridge,'current_ui',lambda depth:{'ok':True,'data':{'children':[{'desc':'笔记 测试 12赞','bounds':[0,0,1,1]}]}})
+ out=a.browse('xhs',r); assert out['ok'] and out['items'][0]['desc']=='笔记 测试 12赞'
