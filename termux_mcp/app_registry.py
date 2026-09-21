@@ -87,3 +87,25 @@ def browse(app_id: str, registry: dict | None=None, max_depth: int=8) -> dict:
         if text or desc: visible.append({**n,'text':text,'desc':desc})
     return {'ok':True,'id':app_id,'label':app.get('label'),'package':app['package'],
             'authorization':auth,'items':visible,'count':len(visible)}
+
+def _require_foreground(app_id: str, registry: dict | None=None) -> tuple[dict, dict | None]:
+    app=inspect(app_id,registry); ctx=android_bridge.current_context()
+    package=(ctx.get('data') or {}).get('package') if ctx.get('ok') else None
+    if package==app['package']: return app, None
+    return app, {'ok':False,'id':app_id,'error':'target app is not in foreground','expected_package':app['package'],'foreground_package':package,'next':'Bring the target app to foreground, then retry.'}
+
+def act(app_id: str, action: str, *, text: str='', view_id: str='', desc: str='', index: int=0, registry: dict | None=None) -> dict:
+    """Perform a governed semantic UI action only when the registered app is foreground."""
+    auth=authorize(app_id,action,registry)
+    if not auth['allowed']: return {'ok':False,'id':app_id,'action':action,'authorization':auth}
+    app, error=_require_foreground(app_id,registry)
+    if error: return {**error,'action':action,'authorization':auth}
+    if action in ('search','inspect_product','inspect_post','read_reviews','browse'):
+        # Read actions are represented by browse; callers can use selectors from its output.
+        return browse(app_id,registry)
+    if action=='like':
+        if not any((text.strip(),view_id.strip(),desc.strip())):
+            return {'ok':False,'id':app_id,'action':action,'authorization':auth,'error':'like requires an explicit semantic selector; coordinate-only likes are refused'}
+        result=android_bridge.click_selector(text=text,view_id=view_id,desc=desc,index=index)
+        return {'ok':bool(result.get('ok')),'id':app_id,'action':action,'authorization':auth,'result':result}
+    return {'ok':False,'id':app_id,'action':action,'authorization':auth,'error':'no governed adapter is implemented for this action'}

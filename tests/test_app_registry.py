@@ -23,3 +23,13 @@ def test_browse_returns_semantic_ui(monkeypatch):
  monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
  monkeypatch.setattr(a.android_bridge,'current_ui',lambda depth:{'ok':True,'data':{'children':[{'desc':'笔记 测试 12赞','bounds':[0,0,1,1]}]}})
  out=a.browse('xhs',r); assert out['ok'] and out['items'][0]['desc']=='笔记 测试 12赞'
+def test_act_refuses_wrong_foreground(monkeypatch):
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'other.app'}})
+ out=a.act('xhs','like',desc='赞',registry=registry()); assert not out['ok'] and out['expected_package']=='com.xingin.xhs'
+def test_act_like_requires_semantic_selector(monkeypatch):
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
+ out=a.act('xhs','like',registry=registry()); assert not out['ok'] and 'semantic selector' in out['error']
+def test_act_like_uses_selector(monkeypatch):
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
+ monkeypatch.setattr(a.android_bridge,'click_selector',lambda **kwargs:{'ok':True,'data':kwargs})
+ out=a.act('xhs','like',desc='赞',registry=registry()); assert out['ok'] and out['result']['data']['desc']=='赞'
