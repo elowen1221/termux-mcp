@@ -58,14 +58,14 @@ def _accessibility_token() -> str | None:
     except OSError:
         return None
 
-def _accessibility(path: str, payload: dict | None = None) -> dict | None:
+def _accessibility(path: str, payload: dict | None = None, timeout: float = 3.0) -> dict | None:
     token = _accessibility_token()
     if not token:
         return None
     data = json.dumps(payload or {}, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(ACCESSIBILITY_URL + path, data=data, headers={"Content-Type": "application/json; charset=utf-8", "X-Walnut-Token": token}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=3.0) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:
@@ -261,7 +261,7 @@ def open_app(package: str) -> dict:
             resolved_label = exact.get("label")
 
     launch_query = resolved_package or query
-    companion = _accessibility("/v1/open", {"query": launch_query})
+    companion = _accessibility("/v1/open", {"query": launch_query}, timeout=8.0)
     if companion and companion.get("ok"):
         app = companion.get("data", {})
         resolved_package = app.get("package") or resolved_package

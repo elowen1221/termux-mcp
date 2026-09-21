@@ -23,14 +23,14 @@ def test_accessibility_probe_without_token(monkeypatch, tmp_path):
 
 
 def test_list_apps_prefers_accessibility_labels(monkeypatch):
-    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": [{"label": "小红书", "package": "com.xingin.xhs"}, {"label": "Chrome", "package": "com.android.chrome"}]} if path == "/v1/apps" else None)
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None, **kwargs: {"ok": True, "data": [{"label": "小红书", "package": "com.xingin.xhs"}, {"label": "Chrome", "package": "com.android.chrome"}]} if path == "/v1/apps" else None)
     data = android_bridge.list_apps(filter="小红")
     assert data["backend"] == "accessibility"
     assert data["apps"] == [{"label": "小红书", "package": "com.xingin.xhs"}]
 
 
 def test_open_app_accepts_human_name_via_companion(monkeypatch):
-    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": {"label": "小红书", "package": "com.xingin.xhs"}} if path == "/v1/open" else None)
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None, **kwargs: {"ok": True, "data": {"label": "小红书", "package": "com.xingin.xhs"}} if path == "/v1/open" else None)
     monkeypatch.setattr(android_bridge, "list_apps", lambda **kwargs: {"apps": [{"label": "小红书", "package": "com.xingin.xhs"}]})
     monkeypatch.setattr(android_bridge, "_wait_for_package", lambda package, timeout_ms=1500: package == "com.xingin.xhs")
     data = android_bridge.open_app("小红书")
@@ -39,7 +39,7 @@ def test_open_app_accepts_human_name_via_companion(monkeypatch):
 
 
 def test_tap_uses_accessibility(monkeypatch):
-    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": payload} if path == "/v1/tap" else None)
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None, **kwargs: {"ok": True, "data": payload} if path == "/v1/tap" else None)
     data = android_bridge.tap(12.5, 99.0)
     assert data["ok"] is True
     assert data["data"] == {"x": 12.5, "y": 99.0}
@@ -67,7 +67,7 @@ def test_rejects_header_unsafe_token():
 
 def test_open_app_resolves_exact_label_and_verifies_foreground(monkeypatch):
     monkeypatch.setattr(android_bridge, "list_apps", lambda **kwargs: {"apps": [{"label": "计算器", "package": "com.android.bbkcalculator"}]})
-    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": {"label": "计算器", "package": "com.android.bbkcalculator"}} if path == "/v1/open" else None)
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None, **kwargs: {"ok": True, "data": {"label": "计算器", "package": "com.android.bbkcalculator"}} if path == "/v1/open" else None)
     monkeypatch.setattr(android_bridge, "_wait_for_package", lambda package, timeout_ms=1500: package == "com.android.bbkcalculator")
     data = android_bridge.open_app("计算器")
     assert data["opened"] is True
@@ -76,7 +76,7 @@ def test_open_app_resolves_exact_label_and_verifies_foreground(monkeypatch):
     assert data["resolved_from_label"] == "计算器"
 
 def test_open_app_does_not_trust_launch_without_foreground(monkeypatch):
-    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": {"label": "Calc", "package": "com.example.calc"}} if path == "/v1/open" else None)
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None, **kwargs: {"ok": True, "data": {"label": "Calc", "package": "com.example.calc"}} if path == "/v1/open" else None)
     monkeypatch.setattr(android_bridge, "_wait_for_package", lambda package, timeout_ms=1500: False)
     monkeypatch.setattr(android_bridge, "_remote", lambda cmd: android_bridge.ExecResult("", "no privileged fallback", 1))
     data = android_bridge.open_app("com.example.calc")
@@ -95,8 +95,20 @@ def test_click_selector_requires_selector():
     assert data["ok"] is False
 
 def test_click_selector_payload(monkeypatch):
-    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None: {"ok": True, "data": payload})
+    monkeypatch.setattr(android_bridge, "_accessibility", lambda path, payload=None, **kwargs: {"ok": True, "data": payload})
     data = android_bridge.click_selector(view_id="pkg:id/foo", index=1)
     assert data["ok"] is True
     assert data["data"]["view_id"] == "pkg:id/foo"
     assert data["data"]["index"] == 1
+
+def test_open_app_allows_slow_companion_launch(monkeypatch):
+    seen={}
+    def fake_accessibility(path,payload=None,timeout=3.0):
+        if path=='/v1/apps': return {'ok':True,'data':[{'label':'小红书','package':'com.xingin.xhs'}]}
+        if path=='/v1/open': seen['timeout']=timeout; return {'ok':True,'data':{'label':'小红书','package':'com.xingin.xhs'}}
+        return None
+    monkeypatch.setattr(android_bridge,'_accessibility',fake_accessibility)
+    monkeypatch.setattr(android_bridge,'_wait_for_package',lambda package: True)
+    out=android_bridge.open_app('小红书')
+    assert out['opened'] is True
+    assert seen['timeout']==8.0
