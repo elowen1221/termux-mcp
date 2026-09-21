@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "apps": {
+    "pinduoduo": {
+      "label": "拼多多",
+      "category": "shopping",
+      "package": "com.xunmeng.pinduoduo",
+      "driver": "android_ui",
+      "capabilities": ["launch", "search", "browse", "inspect_product", "read_reviews"],
+      "permissions": {"favorite": "ask", "add_to_cart": "ask", "order": "deny", "payment": "deny", "address_change": "deny"}
+    },
+    "xiaohongshu": {
+      "label": "小红书",
+      "category": "social",
+      "package": "com.xingin.xhs",
+      "driver": "android_ui",
+      "capabilities": ["launch", "search", "browse", "inspect_post", "like"],
+      "permissions": {"like": "allow", "favorite": "ask", "comment": "deny", "reply": "deny", "publish": "deny", "follow": "deny"}
+    },
+    "douyin": {
+      "label": "抖音",
+      "category": "social",
+      "package": "com.ss.android.ugc.aweme",
+      "driver": "android_ui",
+      "capabilities": ["launch", "search", "browse", "inspect_post", "like"],
+      "permissions": {"like": "allow", "favorite": "ask", "comment": "deny", "message": "deny", "publish": "deny", "follow": "deny"}
+    }
+  }
+}

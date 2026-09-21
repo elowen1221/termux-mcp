@@ -102,6 +102,14 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p_cr.add_argument("component")
     p_cre = components_sub.add_parser("recover", help="Execute a registered recovery policy")
     p_cre.add_argument("component")
+    p_apps = sub.add_parser("apps", help="Inspect registered Android app capabilities")
+    apps_sub = p_apps.add_subparsers(dest="apps_action", required=True)
+    p_al = apps_sub.add_parser("list", help="List registered Android apps")
+    p_al.add_argument("--category", default=None)
+    p_as = apps_sub.add_parser("show", help="Show one app's package, capabilities, and permission policy")
+    p_as.add_argument("app")
+    p_ad = apps_sub.add_parser("doctor", help="Check Android bridge and installation readiness for one app")
+    p_ad.add_argument("app")
     sub.add_parser("url", help="Show the current public MCP URL and whether it is being preserved")
     sub.add_parser("guide", help="Show a beginner cheat sheet and the next connection step")
 
@@ -839,6 +847,18 @@ def run(argv: Optional[List[str]] = None) -> int:
         return cmd_restart(args)
     if args.command == "status":
         return cmd_status()
+    if args.command == "apps":
+        from . import app_registry
+        try:
+            if args.apps_action == "list":
+                print(json.dumps(app_registry.list_apps(args.category), indent=2, ensure_ascii=False)); return 0
+            if args.apps_action == "show":
+                print(json.dumps(app_registry.inspect(args.app), indent=2, ensure_ascii=False)); return 0
+            if args.apps_action == "doctor":
+                result=app_registry.doctor(args.app); print(json.dumps(result, indent=2, ensure_ascii=False)); return 0 if result.get("ready") else 1
+        except KeyError as exc:
+            print(f"Unknown app: {exc.args[0]}", file=sys.stderr); return 2
+
     if args.command == "components":
         from . import governance
         cs = governance.load_registry()
