@@ -112,3 +112,12 @@ def test_open_app_allows_slow_companion_launch(monkeypatch):
     out=android_bridge.open_app('小红书')
     assert out['opened'] is True
     assert seen['timeout']==8.0
+
+def test_open_app_reports_android_background_start_limitation(monkeypatch):
+    monkeypatch.setattr(android_bridge,'_accessibility',lambda path,payload=None,**kwargs: {'ok':True,'data':{'package':'com.example.calc'}} if path=='/v1/open' else None)
+    monkeypatch.setattr(android_bridge,'_wait_for_package',lambda package,timeout_ms=1500: False)
+    monkeypatch.setattr(android_bridge,'_remote',lambda cmd: android_bridge.ExecResult('', 'rish is not installed/configured', 1))
+    out=android_bridge.open_app('com.example.calc')
+    assert out['opened'] is False
+    assert out['launch_requested'] is True
+    assert out['limitation']=='android_background_activity_start'
