@@ -40,3 +40,12 @@ def test_discover_classifies_semantic_targets(monkeypatch):
 def test_discover_refuses_other_foreground(monkeypatch):
  monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.openai.chatgpt'}})
  out=a.discover('xhs',registry()); assert not out['ok'] and out['foreground_package']=='com.openai.chatgpt'
+def test_act_search_requires_semantic_selector(monkeypatch):
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
+ r=registry(); r['xhs']['capabilities'].append('search')
+ out=a.act('xhs','search',registry=r); assert not out['ok'] and 'semantic selector' in out['error']
+def test_act_search_clicks_semantic_selector(monkeypatch):
+ monkeypatch.setattr(a.android_bridge,'current_context',lambda:{'ok':True,'data':{'package':'com.xingin.xhs'}})
+ monkeypatch.setattr(a.android_bridge,'click_selector',lambda **kwargs:{'ok':True,'data':kwargs})
+ r=registry(); r['xhs']['capabilities'].append('search')
+ out=a.act('xhs','search',desc='搜索',registry=r); assert out['ok'] and out['result']['data']['desc']=='搜索'

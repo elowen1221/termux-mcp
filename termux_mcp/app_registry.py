@@ -100,9 +100,15 @@ def act(app_id: str, action: str, *, text: str='', view_id: str='', desc: str=''
     if not auth['allowed']: return {'ok':False,'id':app_id,'action':action,'authorization':auth}
     app, error=_require_foreground(app_id,registry)
     if error: return {**error,'action':action,'authorization':auth}
-    if action in ('search','inspect_product','inspect_post','read_reviews','browse'):
-        # Read actions are represented by browse; callers can use selectors from its output.
+    if action in ('browse','inspect_product','inspect_post','read_reviews'):
         return browse(app_id,registry)
+    if action=='search':
+        # Opening search is navigation, but remains a registered read-only capability.
+        # Require an explicit semantic selector so we never fall back to blind coordinates.
+        if not any((text.strip(),view_id.strip(),desc.strip())):
+            return {'ok':False,'id':app_id,'action':action,'authorization':auth,'error':'search requires an explicit semantic selector'}
+        result=android_bridge.click_selector(text=text,view_id=view_id,desc=desc,index=index)
+        return {'ok':bool(result.get('ok')),'id':app_id,'action':action,'authorization':auth,'result':result}
     if action=='like':
         if not any((text.strip(),view_id.strip(),desc.strip())):
             return {'ok':False,'id':app_id,'action':action,'authorization':auth,'error':'like requires an explicit semantic selector; coordinate-only likes are refused'}
