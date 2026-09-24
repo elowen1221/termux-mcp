@@ -18,6 +18,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,8 +45,10 @@ public final class WalnutAccessibilityService extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent event){}
     @Override public void onInterrupt(){}
 
-    public List<AccessibilityNodeInfo> findText(String text){
-        AccessibilityNodeInfo root=getRootInActiveWindow();
+    public List<AccessibilityNodeInfo> findText(String text){ return findText(text, ""); }
+
+    public List<AccessibilityNodeInfo> findText(String text,String packageName){
+        AccessibilityNodeInfo root=rootForPackage(packageName);
         ArrayList<AccessibilityNodeInfo> exact=new ArrayList<>();
         if(root==null) return exact;
         collectExactMatches(root,text,exact,0);
@@ -58,6 +61,28 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         CharSequence d=node.getContentDescription();
         if((t!=null && text.contentEquals(t)) || (d!=null && text.contentEquals(d))) out.add(node);
         for(int i=0;i<node.getChildCount();i++) collectExactMatches(node.getChild(i),text,out,depth+1);
+    }
+
+    public AccessibilityNodeInfo rootForPackage(String packageName){
+        if(packageName==null || packageName.isEmpty()) return getRootInActiveWindow();
+        try{
+            for(AccessibilityWindowInfo window:getWindows()){
+                AccessibilityNodeInfo root=window.getRoot();
+                if(root!=null && packageName.contentEquals(root.getPackageName())) return root;
+            }
+        }catch(Throwable ignored){}
+        AccessibilityNodeInfo active=getRootInActiveWindow();
+        if(active!=null && packageName.contentEquals(active.getPackageName())) return active;
+        return null;
+    }
+
+    public JSONObject windowContext(String packageName){
+        JSONObject out=new JSONObject(); AccessibilityNodeInfo root=rootForPackage(packageName);
+        try{
+            out.put("success",root!=null); out.put("requested_package",packageName);
+            if(root!=null){ Rect r=new Rect(); root.getBoundsInScreen(r); out.put("package",String.valueOf(root.getPackageName())); out.put("class",String.valueOf(root.getClassName())); out.put("bounds",new JSONArray(new int[]{r.left,r.top,r.right,r.bottom})); }
+        }catch(Exception ignored){}
+        return out;
     }
 
     public JSONObject currentContext(){
@@ -75,9 +100,11 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         return out;
     }
 
-    public JSONObject clickSelectorDetailed(String text,String viewId,String desc,int index){
+    public JSONObject clickSelectorDetailed(String text,String viewId,String desc,int index){ return clickSelectorDetailed(text,viewId,desc,index,""); }
+
+    public JSONObject clickSelectorDetailed(String text,String viewId,String desc,int index,String packageName){
         JSONObject result=new JSONObject();
-        AccessibilityNodeInfo root=getRootInActiveWindow();
+        AccessibilityNodeInfo root=rootForPackage(packageName);
         ArrayList<AccessibilityNodeInfo> matches=new ArrayList<>();
         if(root!=null) collectSelectorMatches(root,text,viewId,desc,matches,0);
         try{ result.put("match_count",matches.size()); result.put("index",index); }catch(Exception ignored){}
@@ -114,10 +141,12 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         for(int i=0;i<node.getChildCount();i++) collectSelectorMatches(node.getChild(i),text,viewId,desc,out,depth+1);
     }
 
-    public JSONObject clickTextDetailed(String text){
+    public JSONObject clickTextDetailed(String text){ return clickTextDetailed(text,""); }
+
+    public JSONObject clickTextDetailed(String text,String packageName){
         JSONObject result=new JSONObject();
-        try{ result.put("query",text); }catch(Exception ignored){}
-        List<AccessibilityNodeInfo> matches=findText(text);
+        try{ result.put("query",text); result.put("requested_package",packageName); }catch(Exception ignored){}
+        List<AccessibilityNodeInfo> matches=findText(text,packageName);
         try{ result.put("match_count",matches.size()); }catch(Exception ignored){}
         for(AccessibilityNodeInfo node:matches){
             Rect nodeBounds=new Rect();
@@ -214,8 +243,10 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         return result;
     }
 
-    public boolean setFocusedText(String text){
-        AccessibilityNodeInfo root=getRootInActiveWindow();
+    public boolean setFocusedText(String text){ return setFocusedText(text,""); }
+
+    public boolean setFocusedText(String text,String packageName){
+        AccessibilityNodeInfo root=rootForPackage(packageName);
         if(root==null) return false;
         AccessibilityNodeInfo focused=root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
         if(focused==null) return false;

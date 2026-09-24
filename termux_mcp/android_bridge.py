@@ -79,12 +79,12 @@ def _accessibility(path: str, payload: dict | None = None, timeout: float = 3.0)
     except (OSError, urllib.error.URLError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
-def current_context() -> dict:
-    data = _accessibility("/v1/context")
+def current_context(package: str = "") -> dict:
+    data = _accessibility("/v1/context", {"package": package})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
-def current_ui(max_depth: int = 6) -> dict:
-    data = _accessibility("/v1/ui", {"max_depth": max_depth})
+def current_ui(max_depth: int = 6, package: str = "") -> dict:
+    data = _accessibility("/v1/ui", {"max_depth": max_depth, "package": package})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
 def screenshot_png() -> bytes | None:
@@ -117,10 +117,10 @@ def click(text: str) -> dict:
     data = _accessibility("/v1/click", {"text": text})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
-def click_selector(*, text: str = "", view_id: str = "", desc: str = "", index: int = 0) -> dict:
+def click_selector(*, text: str = "", view_id: str = "", desc: str = "", index: int = 0, package: str = "") -> dict:
     if not any((text.strip(), view_id.strip(), desc.strip())):
         return {"ok": False, "error": "at least one selector is required"}
-    data = _accessibility("/v1/click-selector", {"text": text, "view_id": view_id, "desc": desc, "index": int(index)})
+    data = _accessibility("/v1/click-selector", {"text": text, "view_id": view_id, "desc": desc, "index": int(index), "package": package})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
 def tap(x: float, y: float) -> dict:
@@ -150,8 +150,8 @@ def click_and_verify(text: str, expect_text: str, timeout_ms: int = 2000) -> dic
     verification = wait_for_text(expect_text, timeout_ms, 8)
     return {"ok": verification.get("verified", False), "action": action, "verified": verification.get("verified", False), "verification": verification}
 
-def type_text(text: str) -> dict:
-    data = _accessibility("/v1/type", {"text": text})
+def type_text(text: str, package: str = "") -> dict:
+    data = _accessibility("/v1/type", {"text": text, "package": package})
     return data or {"ok": False, "error": "accessibility companion unavailable"}
 
 def swipe(x1: float, y1: float, x2: float, y2: float, duration: int = 300) -> dict:
