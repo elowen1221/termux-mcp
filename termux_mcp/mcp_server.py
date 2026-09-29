@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from . import config
 from . import managed_mcp
+from . import workbench
 from . import operations
 from . import android_bridge
 from . import app_registry
@@ -251,6 +252,23 @@ def tool_android_back() -> dict:
     return android_bridge.back()
 
 
+def tool_workbench_context() -> dict:
+    """Read the workbench rules, user note, handoff, and compact box map."""
+    return workbench.context()
+
+
+def tool_workbench_doctor() -> dict:
+    """Validate the AI workbench organization contract without scanning unrelated files."""
+    return workbench.doctor()
+
+
+def tool_workbench_new_box(name: str) -> dict:
+    """Create a persistent self-describing workbench box with README and LOG."""
+    if not permissions.allows("filesystem.write"):
+        return permissions.denied("filesystem.write")
+    return workbench.new_box(name)
+
+
 def tool_app_list(category: str = "") -> list[dict]:
     """List governed Android app adapters and their declared capabilities."""
     return app_registry.list_apps(category or None)
@@ -444,6 +462,9 @@ def _build_mcp_app():
     mcp.tool(name="android_type")(tool_android_type)
     mcp.tool(name="android_swipe")(tool_android_swipe)
     mcp.tool(name="android_back")(tool_android_back)
+    mcp.tool(name="workbench_context")(tool_workbench_context)
+    mcp.tool(name="workbench_doctor")(tool_workbench_doctor)
+    mcp.tool(name="workbench_new_box")(tool_workbench_new_box)
     mcp.tool(name="app_list")(tool_app_list)
     mcp.tool(name="app_doctor")(tool_app_doctor)
     mcp.tool(name="app_browse")(tool_app_browse)

@@ -1,0 +1,15 @@
+version = 1
+
+[notes]
+rules = "RULES.md"
+user = "USER.md"
+handoff = "HANDOFF.md"
+
+[categories]
+boxes = "boxes"
+scratch = "scratch"
+archive = "archive"
+
+[contracts.box]
+entry = "README.md"
+history = "LOG.md"
