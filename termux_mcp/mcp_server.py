@@ -433,7 +433,19 @@ def _build_mcp_app():
         allowed_hosts=list(_LOCALHOST_HOSTS),
         allowed_origins=list(_LOCALHOST_ORIGINS),
     )
-    mcp = FastMCP("termux-mcp", json_response=True, transport_security=_transport_security)
+    mcp = FastMCP(
+        "termux-mcp",
+        instructions=(
+            "This server is a long-lived AI workbench on an Android/Termux device. "
+            "At the start of a new working session, call workbench_context before exploring files or creating project state. "
+            "Follow its RULES, USER, and HANDOFF notes in that order. "
+            "Use the compact box map to choose a box, then read that box README before modifying it. "
+            "Use workbench_new_box for persistent new work instead of scattering files in the workspace root. "
+            "Use workbench_doctor when workspace organization is uncertain."
+        ),
+        json_response=True,
+        transport_security=_transport_security,
+    )
     _transport_security = mcp.settings.transport_security
     _apply_public_url(_transport_security, config.get_public_url(), lan_host=getattr(config, "LAN_HOST", ""))
 

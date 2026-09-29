@@ -112,7 +112,10 @@ def test_tools_list_and_call_smoke(mcp_server):
             mcp_server, headers={"Authorization": f"Bearer {AUTH_TOKEN}"}
         ) as (read, write, _):
             async with ClientSession(read, write) as session:
-                await session.initialize()
+                init = await session.initialize()
+                assert init.instructions is not None
+                assert "call workbench_context" in init.instructions
+                assert "RULES, USER, and HANDOFF" in init.instructions
                 tools = await session.list_tools()
                 assert [t.name for t in tools.tools] == EXPECTED_TOOLS
 
