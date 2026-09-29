@@ -10,6 +10,7 @@ from . import config
 from . import managed_mcp
 from . import operations
 from . import android_bridge
+from . import app_registry
 from . import permissions
 from . import step_runner
 from .auth import get_auth_provider
@@ -250,6 +251,33 @@ def tool_android_back() -> dict:
     return android_bridge.back()
 
 
+def tool_app_list(category: str = "") -> list[dict]:
+    """List governed Android app adapters and their declared capabilities."""
+    return app_registry.list_apps(category or None)
+
+
+def tool_app_doctor(app_id: str) -> dict:
+    """Check whether one governed Android app is installed and controllable."""
+    return app_registry.doctor(app_id)
+
+
+def tool_app_browse(app_id: str, max_depth: int = 8) -> dict:
+    """Read visible semantic content from a governed Android app."""
+    return app_registry.browse(app_id, max_depth=max_depth)
+
+
+def tool_app_discover(app_id: str, max_depth: int = 8) -> dict:
+    """Discover semantic action targets in the foreground governed app without acting."""
+    return app_registry.discover(app_id, max_depth=max_depth)
+
+
+def tool_app_act(app_id: str, action: str, text: str = "", view_id: str = "", desc: str = "", index: int = 0) -> dict:
+    """Perform one policy-governed semantic app action; app policy decides allow/ask/deny."""
+    if not permissions.allows("device.write"):
+        return permissions.denied("device.write")
+    return app_registry.act(app_id, action, text=text, view_id=view_id, desc=desc, index=index)
+
+
 def tool_mcp_install(source: str, name: str = "", command: str = "", authorization: str = "") -> dict:
     if not permissions.allows("managed.install"):
         return permissions.denied("managed.install")
@@ -416,6 +444,11 @@ def _build_mcp_app():
     mcp.tool(name="android_type")(tool_android_type)
     mcp.tool(name="android_swipe")(tool_android_swipe)
     mcp.tool(name="android_back")(tool_android_back)
+    mcp.tool(name="app_list")(tool_app_list)
+    mcp.tool(name="app_doctor")(tool_app_doctor)
+    mcp.tool(name="app_browse")(tool_app_browse)
+    mcp.tool(name="app_discover")(tool_app_discover)
+    mcp.tool(name="app_act")(tool_app_act)
     mcp.tool(name="mcp_install")(tool_mcp_install)
     mcp.tool(name="mcp_list")(tool_mcp_list)
     mcp.tool(name="mcp_search")(tool_mcp_search)
