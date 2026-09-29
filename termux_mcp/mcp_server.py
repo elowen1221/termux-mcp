@@ -269,6 +269,13 @@ def tool_workbench_new_box(name: str) -> dict:
     return workbench.new_box(name)
 
 
+def tool_workbench_checkpoint(box: str, goal: str, state: str, next_action: str, caution: str = "", log: str = "") -> dict:
+    """Leave a compact next-session handoff; optionally append durable history to the box log."""
+    if not permissions.allows("filesystem.write"):
+        return permissions.denied("filesystem.write")
+    return workbench.checkpoint(box, goal, state, next_action, caution, log)
+
+
 def tool_app_list(category: str = "") -> list[dict]:
     """List governed Android app adapters and their declared capabilities."""
     return app_registry.list_apps(category or None)
@@ -441,7 +448,8 @@ def _build_mcp_app():
             "Follow its RULES, USER, and HANDOFF notes in that order. "
             "Use the compact box map to choose a box, then read that box README before modifying it. "
             "Use workbench_new_box for persistent new work instead of scattering files in the workspace root. "
-            "Use workbench_doctor when workspace organization is uncertain."
+            "Use workbench_doctor when workspace organization is uncertain. "
+            "Before leaving unfinished work, deliberately update the box README if current project truth changed, then call workbench_checkpoint to leave a compact handoff for the next session."
         ),
         json_response=True,
         transport_security=_transport_security,
@@ -477,6 +485,7 @@ def _build_mcp_app():
     mcp.tool(name="workbench_context")(tool_workbench_context)
     mcp.tool(name="workbench_doctor")(tool_workbench_doctor)
     mcp.tool(name="workbench_new_box")(tool_workbench_new_box)
+    mcp.tool(name="workbench_checkpoint")(tool_workbench_checkpoint)
     mcp.tool(name="app_list")(tool_app_list)
     mcp.tool(name="app_doctor")(tool_app_doctor)
     mcp.tool(name="app_browse")(tool_app_browse)

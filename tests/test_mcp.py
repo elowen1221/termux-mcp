@@ -41,6 +41,7 @@ EXPECTED_TOOLS = [
     "workbench_context",
     "workbench_doctor",
     "workbench_new_box",
+    "workbench_checkpoint",
     "app_list",
     "app_doctor",
     "app_browse",
@@ -116,6 +117,7 @@ def test_tools_list_and_call_smoke(mcp_server):
                 assert init.instructions is not None
                 assert "call workbench_context" in init.instructions
                 assert "RULES, USER, and HANDOFF" in init.instructions
+                assert "workbench_checkpoint" in init.instructions
                 tools = await session.list_tools()
                 assert [t.name for t in tools.tools] == EXPECTED_TOOLS
 

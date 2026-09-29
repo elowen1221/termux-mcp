@@ -60,3 +60,30 @@ def test_user_and_handoff_content_are_local_instance_state(tmp_path):
     assert "never auto-push" in ctx["notes"]["user"]
     assert "continue demo-box" in ctx["notes"]["handoff"]
     assert not (Path(__file__).resolve().parents[1] / "workbench_foundation" / "USER.md").exists()
+
+
+def test_checkpoint_writes_handoff_and_optional_history(tmp_path):
+    from termux_mcp import workbench
+    workbench.ensure(tmp_path)
+    assert workbench.new_box("demo", tmp_path)["created"] is True
+    result = workbench.checkpoint(
+        "demo", "finish foundation", "tests pass", "resume integration",
+        caution="do not rewrite README automatically", log="checkpoint contract verified", root=tmp_path,
+    )
+    assert result["saved"] is True
+    assert result["history_appended"] is True
+    handoff = (tmp_path / "HANDOFF.md").read_text()
+    assert "finish foundation" in handoff
+    assert "resume integration" in handoff
+    assert "checkpoint contract verified" in (tmp_path / "boxes" / "demo" / "LOG.md").read_text()
+
+
+def test_checkpoint_rejects_unknown_or_broken_box(tmp_path):
+    from termux_mcp import workbench
+    workbench.ensure(tmp_path)
+    assert workbench.checkpoint("missing", "g", "s", "n", root=tmp_path)["saved"] is False
+    broken = tmp_path / "boxes" / "broken"
+    broken.mkdir()
+    result = workbench.checkpoint("broken", "g", "s", "n", root=tmp_path)
+    assert result["saved"] is False
+    assert "missing README.md" in result["error"]

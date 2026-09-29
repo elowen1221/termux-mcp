@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timezone
 import os, re, shutil, tomllib
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
@@ -63,3 +64,30 @@ def new_box(name: str, root: str | Path | None = None) -> dict:
     (box / m["contracts"]["box"]["entry"]).write_text(template)
     (box / m["contracts"]["box"]["history"]).write_text(f"# {name} log\n")
     return {"created": True, "box": name}
+
+
+def checkpoint(box: str, goal: str, state: str, next_action: str, caution: str = "", log: str = "", root: str | Path | None = None) -> dict:
+    root = ensure(root); m = _manifest(root); boxes = root / m["categories"]["boxes"]
+    target = (boxes / box).resolve()
+    if target.parent != boxes.resolve() or not target.is_dir():
+        return {"saved": False, "error": "unknown box", "box": box}
+    entry = m["contracts"]["box"]["entry"]
+    if not (target / entry).is_file():
+        return {"saved": False, "error": f"box contract violation: missing {entry}", "box": box}
+    handoff = root / m["notes"]["handoff"]
+    handoff.write_text(
+        "# Handoff\n\n"
+        f"## Current goal\n{goal.strip()}\n\n"
+        f"## Current box\n`{box}`\n\n"
+        f"## Verified state\n{state.strip()}\n\n"
+        f"## Blockers / cautions\n{caution.strip() or '(none recorded)'}\n\n"
+        f"## Next action\n{next_action.strip()}\n"
+    )
+    logged = False
+    if log.strip():
+        history = target / m["contracts"]["box"]["history"]
+        if not history.exists(): history.write_text(f"# {box} log\n")
+        stamp = datetime.now(timezone.utc).astimezone().isoformat(timespec="minutes")
+        with history.open("a") as f: f.write(f"\n## {stamp}\n{log.strip()}\n")
+        logged = True
+    return {"saved": True, "box": box, "history_appended": logged, "readme_reminder": "Update the box README separately when current project truth changed."}
