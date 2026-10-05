@@ -136,11 +136,17 @@ public final class MainActivity extends Activity {
     }
     private String readyName(String key){ return getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("ready_"+key,null); }
     private void syncDropReceipts(){
+        // Query by display name only. Some Android/vendor MediaStore builds do not
+        // expose RELATIVE_PATH consistently for files created outside MediaStore.
         Uri collection=MediaStore.Files.getContentUri("external");
-        String rel=Environment.DIRECTORY_DOCUMENTS+"/WalnutDrop/";
-        try(Cursor c=getContentResolver().query(collection,new String[]{MediaStore.MediaColumns._ID},MediaStore.MediaColumns.RELATIVE_PATH+"=? AND "+MediaStore.MediaColumns.DISPLAY_NAME+"=?",new String[]{rel,"receipts.json"},MediaStore.MediaColumns.DATE_MODIFIED+" DESC")){
-            if(c==null||!c.moveToFirst())return; Uri u=Uri.withAppendedPath(collection,String.valueOf(c.getLong(0)));
-            try(InputStream in=getContentResolver().openInputStream(u)){if(in==null)return; byte[] raw=new byte[65536]; int n=in.read(raw); if(n<=0)return; JSONObject root=new JSONObject(new String(raw,0,n,java.nio.charset.StandardCharsets.UTF_8)); JSONObject ready=root.optJSONObject("ready"); if(ready==null)return; android.content.SharedPreferences.Editor e=getSharedPreferences("walnut_drop",MODE_PRIVATE).edit(); java.util.Iterator<String> keys=ready.keys(); while(keys.hasNext()){String k=keys.next(); e.putString("ready_"+k,ready.optString(k,"已收录"));} e.apply();}
+        try(Cursor c=getContentResolver().query(collection,new String[]{MediaStore.MediaColumns._ID,MediaStore.MediaColumns.RELATIVE_PATH},MediaStore.MediaColumns.DISPLAY_NAME+"=?",new String[]{"receipts.json"},MediaStore.MediaColumns.DATE_MODIFIED+" DESC")){
+            if(c==null)return;
+            while(c.moveToNext()){
+                int pathCol=c.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH); String rel=pathCol>=0?c.getString(pathCol):"";
+                if(rel!=null && !rel.contains("WalnutDrop"))continue;
+                Uri u=Uri.withAppendedPath(collection,String.valueOf(c.getLong(0)));
+                try(InputStream in=getContentResolver().openInputStream(u)){if(in==null)continue; java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream(); byte[] buf=new byte[8192]; int n; while((n=in.read(buf))>0 && out.size()<65536)out.write(buf,0,n); JSONObject root=new JSONObject(out.toString("UTF-8")); JSONObject ready=root.optJSONObject("ready"); if(ready==null)continue; android.content.SharedPreferences.Editor e=getSharedPreferences("walnut_drop",MODE_PRIVATE).edit(); java.util.Iterator<String> keys=ready.keys(); while(keys.hasNext()){String k=keys.next();e.putString("ready_"+k,ready.optString(k,"已收录"));}e.apply(); return;}catch(Throwable ignored){}
+            }
         }catch(Throwable ignored){}
     }
     static void markDropReady(Context context,String key,String name){ if(key==null||key.isEmpty())return; context.getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("ready_"+key,name==null||name.isEmpty()?"已收录":name).apply(); }
