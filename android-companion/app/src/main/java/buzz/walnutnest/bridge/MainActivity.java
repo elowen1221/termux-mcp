@@ -94,6 +94,9 @@ public final class MainActivity extends Activity {
 
         TextView footer=text("◌  one small bridge, quietly awake",12,MUTED); footer.setGravity(Gravity.CENTER); page.addView(footer,lp(-1,-2,0,0));
         scroll.addView(page); setContentView(scroll); refreshStatus();
+        // Keep the local callback endpoint alive independently of Accessibility.
+        // BridgeHttpServer itself still gates UI-control endpoints on the accessibility instance.
+        try{ startService(new Intent(this, BridgeService.class)); }catch(Throwable ignored){}
     }
 
     private void pickImages(int requestCode){
