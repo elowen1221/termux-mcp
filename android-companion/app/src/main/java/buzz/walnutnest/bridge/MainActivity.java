@@ -7,6 +7,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.app.AlertDialog;
+import android.widget.GridLayout;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.net.Uri;
@@ -34,7 +38,7 @@ public final class MainActivity extends Activity {
     private static final int PICK_STICKERS=4101, PICK_DROP=4102;
     private static final int INK=Color.rgb(41,40,36), MUTED=Color.rgb(119,115,107), LEAF=Color.rgb(102,116,94);
     private TextView bridgeState;
-    private LinearLayout recentDrops;
+    private GridLayout recentDrops;
     private TextView recentSummary;
     private final java.util.ArrayList<DropItem> recentItems=new java.util.ArrayList<>();
     private static final class DropItem { String name,bucket,key; Uri uri; DropItem(String n,String b,Uri u,String k){name=n;bucket=b;uri=u;key=k;} }
@@ -78,7 +82,7 @@ public final class MainActivity extends Activity {
         Button pictures=button("Drop pictures",false); pictures.setOnClickListener(v->pickImages(PICK_DROP)); dropCard.addView(pictures,lp(-1,dp(46),8,0));
         TextView recentLabel=text("RECENTLY DROPPED",11,MUTED); recentLabel.setLetterSpacing(.10f); dropCard.addView(recentLabel,lp(-1,-2,18,0));
         recentSummary=text("Nothing dropped from this screen yet.",13,MUTED); dropCard.addView(recentSummary,lp(-1,-2,5,0));
-        recentDrops=new LinearLayout(this); recentDrops.setOrientation(LinearLayout.VERTICAL); dropCard.addView(recentDrops,lp(-1,-2,4,0));
+        recentDrops=new GridLayout(this); recentDrops.setColumnCount(3); dropCard.addView(recentDrops,lp(-1,-2,8,0));
         loadRecentDrops(); renderRecentDrops();
         page.addView(dropCard,lp(-1,-2,0,14));
 
@@ -119,14 +123,30 @@ public final class MainActivity extends Activity {
     private void renderRecentDrops(){
         if(recentDrops==null)return; recentDrops.removeAllViews();
         if(recentItems.isEmpty()){recentSummary.setText("Nothing dropped from this screen yet.");return;}
+        int gap=dp(4); int cell=Math.max(dp(82),(getResources().getDisplayMetrics().widthPixels-dp(96)-gap*6)/3);
         for(DropItem item:recentItems){
-            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
-            ImageView thumb=new ImageView(this); thumb.setScaleType(ImageView.ScaleType.CENTER_CROP); thumb.setImageDrawable(null); row.addView(thumb,new LinearLayout.LayoutParams(dp(54),dp(54)));
-            LinearLayout words=new LinearLayout(this); words.setOrientation(LinearLayout.VERTICAL);
-            TextView label=text(item.name,13,INK); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); words.addView(label);
-            String ready=readyName(item.key); TextView state=text(ready==null?"✓ 已投递 · 等待桉桉整理":"✓ 已收录 · "+ready,12,ready==null?MUTED:LEAF); words.addView(state,lp(-1,-2,3,0));
-            LinearLayout.LayoutParams q=new LinearLayout.LayoutParams(0,dp(54),1); q.leftMargin=dp(10); row.addView(words,q); recentDrops.addView(row,lp(-1,dp(58),4,0));
+            LinearLayout tile=new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL);
+            ImageView thumb=new ImageView(this); thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable ph=new GradientDrawable(); ph.setColor(Color.rgb(238,235,228)); ph.setCornerRadius(dp(14)); thumb.setBackground(ph); thumb.setClipToOutline(true);
+            loadSafeThumbnail(thumb,item); tile.addView(thumb,new LinearLayout.LayoutParams(-1,cell));
+            TextView label=text(item.name,11,INK); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.END); tile.addView(label,lp(-1,-2,5,0));
+            String ready=readyName(item.key); TextView state=text(ready==null?"等待整理":"已收录",10,ready==null?MUTED:LEAF); tile.addView(state,lp(-1,-2,2,0));
+            Button del=button("删除",false); del.setTextSize(11); del.setOnClickListener(v->confirmDeleteDrop(item)); tile.addView(del,lp(-1,dp(36),5,0));
+            GridLayout.LayoutParams gp=new GridLayout.LayoutParams(); gp.width=cell; gp.height=GridLayout.LayoutParams.WRAP_CONTENT; gp.setMargins(gap,gap,gap,dp(8)); recentDrops.addView(tile,gp);
         }
+    }
+    private void loadSafeThumbnail(ImageView view,DropItem item){
+        if(item.uri==null||!"content".equals(item.uri.getScheme())||!"media".equals(item.uri.getAuthority()))return;
+        new Thread(()->{try(InputStream in=getContentResolver().openInputStream(item.uri)){if(in==null)return;BitmapFactory.Options o=new BitmapFactory.Options();o.inSampleSize=4;Bitmap bmp=BitmapFactory.decodeStream(in,null,o);if(bmp!=null)runOnUiThread(()->view.setImageBitmap(bmp));}catch(Throwable ignored){}}).start();
+    }
+    private void confirmDeleteDrop(DropItem item){
+        new AlertDialog.Builder(this).setTitle("删除这张图片？").setMessage(item.name+"\n\n删除 Walnut Drop 中的投递记录和暂存图片；已经收录的正式表情副本不会被误删。")
+            .setNegativeButton("取消",null).setPositiveButton("删除",(dialog,which)->deleteDrop(item)).show();
+    }
+    private void deleteDrop(DropItem item){
+        try{if(item.uri!=null)getContentResolver().delete(item.uri,null,null);}catch(Throwable ignored){}
+        recentItems.remove(item); getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().remove("ready_"+item.key).apply(); saveRecentDrops(); renderRecentDrops();
+        Toast.makeText(this,"已从 Walnut Drop 删除",Toast.LENGTH_SHORT).show();
     }
     private void saveRecentDrops(){
         JSONArray a=new JSONArray(); try{for(DropItem x:recentItems){JSONObject j=new JSONObject();j.put("name",x.name);j.put("bucket",x.bucket);j.put("uri",x.uri.toString());j.put("key",x.key);a.put(j);}getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("recent",a.toString()).apply();}catch(Exception ignored){}
