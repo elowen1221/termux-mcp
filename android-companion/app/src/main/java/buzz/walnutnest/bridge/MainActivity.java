@@ -38,9 +38,11 @@ public final class MainActivity extends Activity {
     private TextView recentSummary;
     private final java.util.ArrayList<DropItem> recentItems=new java.util.ArrayList<>();
     private static final class DropItem { String name,bucket,key; Uri uri; DropItem(String n,String b,Uri u,String k){name=n;bucket=b;uri=u;key=k;} }
+    private static final class ExportedDrop { String name,key; Uri uri; ExportedDrop(String n,String k,Uri u){name=n;key=k;uri=u;} }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        try{startService(new Intent(this,BridgeService.class));}catch(Exception ignored){}
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(Color.rgb(247,245,239));
         LinearLayout page=new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(dp(24),dp(30),dp(24),dp(36));
 
@@ -103,16 +105,16 @@ public final class MainActivity extends Activity {
         if(resultCode!=RESULT_OK||data==null||(requestCode!=PICK_STICKERS&&requestCode!=PICK_DROP))return;
         java.util.ArrayList<Uri> uris=new java.util.ArrayList<>();
         if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());} else if(data.getData()!=null)uris.add(data.getData());
-        String bucket=requestCode==PICK_STICKERS?"stickers":"pictures"; int ok=0; java.util.ArrayList<Uri> done=new java.util.ArrayList<>();
-        for(Uri uri:uris) if(exportDrop(uri,bucket)){ok++;done.add(uri);}
-        rememberRecentDrops(done,bucket); showRecentDrops(done,ok,uris.size(),bucket);
+        String bucket=requestCode==PICK_STICKERS?"stickers":"pictures"; int ok=0; java.util.ArrayList<ExportedDrop> done=new java.util.ArrayList<>();
+        for(Uri uri:uris){ExportedDrop d=exportDrop(uri,bucket);if(d!=null){ok++;done.add(d);}}
+        rememberRecentDrops(done,bucket); showRecentDrops(ok,uris.size(),bucket);
         Toast.makeText(this,"Dropped "+ok+" / "+uris.size()+" picture(s) · WalnutDrop",Toast.LENGTH_LONG).show();
     }
-    private void showRecentDrops(java.util.ArrayList<Uri> uris,int ok,int total,String bucket){
+    private void showRecentDrops(int ok,int total,String bucket){
         recentSummary.setText(ok==total?("✓ "+ok+" picture"+(ok==1?"":"s")+" delivered · "+bucket):("⚠ "+ok+" / "+total+" delivered · "+bucket)); renderRecentDrops();
     }
-    private void rememberRecentDrops(java.util.ArrayList<Uri> uris,String bucket){
-        for(Uri uri:uris){recentItems.add(0,new DropItem(displayName(uri),bucket,uri,dropKey(uri)));}
+    private void rememberRecentDrops(java.util.ArrayList<ExportedDrop> drops,String bucket){
+        for(ExportedDrop d:drops){recentItems.add(0,new DropItem(d.name,bucket,d.uri,d.key));}
         while(recentItems.size()>12)recentItems.remove(recentItems.size()-1); saveRecentDrops();
     }
     private void renderRecentDrops(){
@@ -133,27 +135,26 @@ public final class MainActivity extends Activity {
     private void loadRecentDrops(){
         recentItems.clear(); try{JSONArray a=new JSONArray(getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("recent","[]"));for(int i=0;i<a.length();i++){JSONObject j=a.getJSONObject(i);recentItems.add(new DropItem(j.optString("name","picture"),j.optString("bucket","stickers"),Uri.parse(j.optString("uri")),j.optString("key",j.optString("name","picture"))));}}catch(Exception ignored){}
     }
-    private String dropKey(Uri uri){ return displayName(uri); }
     private String readyName(String key){ return getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("ready_"+key,null); }
     static void markDropReady(Context context,String key,String name){ if(key==null||key.isEmpty())return; context.getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("ready_"+key,name==null||name.isEmpty()?"已收录":name).apply(); }
     private String displayName(Uri uri){
         String name="picture"; Cursor c=getContentResolver().query(uri,null,null,null,null); if(c!=null){try{if(c.moveToFirst()){int n=c.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(n>=0&&c.getString(n)!=null)name=c.getString(n);}}finally{c.close();}} return name;
     }
-    private boolean exportDrop(Uri uri,String bucket){
+    private ExportedDrop exportDrop(Uri uri,String bucket){
         try{
-            String name="image"; Cursor c=getContentResolver().query(uri,null,null,null,null); if(c!=null){try{if(c.moveToFirst()){int n=c.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(n>=0)name=c.getString(n);}}finally{c.close();}}
-            name=name.replaceAll("[^A-Za-z0-9._-]","_");
-            ContentValues values=new ContentValues();
-            values.put(MediaStore.MediaColumns.DISPLAY_NAME,System.currentTimeMillis()+"_"+name);
+            String original=displayName(uri); String safe=original.replaceAll("[^A-Za-z0-9._-]","_");
+            String key=java.util.UUID.randomUUID().toString().replace("-",""); String exported="walnut_"+key+"_"+safe;
+            ContentValues values=new ContentValues(); values.put(MediaStore.MediaColumns.DISPLAY_NAME,exported);
             String mime=getContentResolver().getType(uri); values.put(MediaStore.MediaColumns.MIME_TYPE,mime==null?"image/jpeg":mime);
-            values.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/WalnutDrop/"+bucket);
-            Uri dest=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values); if(dest==null)return false;
-            boolean copied=false; try(InputStream in=getContentResolver().openInputStream(uri);OutputStream os=getContentResolver().openOutputStream(dest)){if(in==null||os==null)return false;byte[] buf=new byte[65536];int n;while((n=in.read(buf))>0)os.write(buf,0,n);copied=true;} finally {if(!copied)getContentResolver().delete(dest,null,null);}
-            return copied;
-        }catch(Exception e){return false;}
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/WalnutDrop/"+bucket); values.put(MediaStore.MediaColumns.IS_PENDING,1);
+            Uri dest=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values); if(dest==null)return null;
+            boolean copied=false; try(InputStream in=getContentResolver().openInputStream(uri);OutputStream os=getContentResolver().openOutputStream(dest)){if(in==null||os==null)return null;byte[] buf=new byte[65536];int n;while((n=in.read(buf))>0)os.write(buf,0,n);copied=true;} finally {if(!copied)getContentResolver().delete(dest,null,null);}
+            ContentValues ready=new ContentValues(); ready.put(MediaStore.MediaColumns.IS_PENDING,0); getContentResolver().update(dest,ready,null,null);
+            return new ExportedDrop(original,key,dest);
+        }catch(Exception e){return null;}
     }
 
-    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();Updater.resumePendingInstall(this);}
+    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();loadRecentDrops();renderRecentDrops();Updater.resumePendingInstall(this);}
     private void refreshStatus(){String s=BridgeState.status(this);boolean ready="ready".equalsIgnoreCase(s)||WalnutAccessibilityService.get()!=null;bridgeState.setText(ready?"●  Connected":"○  Waiting for access");bridgeState.setTextColor(ready?LEAF:INK);}
     private String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){return "?";}}
     private String maskedToken(){String t=BridgeToken.getOrCreate(this);return "•••• •••• ••••  ·  "+(t.length()>4?t.substring(t.length()-4):"••••");}

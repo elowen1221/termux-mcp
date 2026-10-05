@@ -130,7 +130,16 @@ def tool_run_command(cmd: str, confirmed: bool = False) -> dict:
     }
 
 
-def tool_read_file(path: str, offset: int = 0, limit: int = 500) -> dict:
+def tool_read_file(path: str, offset: int = 0, limit: int = 500):
+    # Preserve the historical text-file contract, but return native MCP image
+    # content for supported image files instead of decoding binary as UTF-8.
+    resolved = operations.resolve_path(path, WORKSPACE_ROOT)
+    if resolved is not None:
+        from pathlib import Path as _Path
+        _p = _Path(resolved)
+        if _p.is_file() and _p.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+            from mcp.server.fastmcp.utilities.types import Image as _McpImage
+            return _McpImage(path=_p)
     return operations.read_file(path, offset=offset, limit=limit, workspace=WORKSPACE_ROOT)
 
 
