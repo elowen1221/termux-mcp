@@ -79,8 +79,7 @@ public final class MainActivity extends Activity {
         TextView recentLabel=text("RECENTLY DROPPED",11,MUTED); recentLabel.setLetterSpacing(.10f); dropCard.addView(recentLabel,lp(-1,-2,18,0));
         recentSummary=text("Nothing dropped from this screen yet.",13,MUTED); dropCard.addView(recentSummary,lp(-1,-2,5,0));
         recentDrops=new LinearLayout(this); recentDrops.setOrientation(LinearLayout.VERTICAL); dropCard.addView(recentDrops,lp(-1,-2,4,0));
-        getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().remove("recent").apply();
-        recentItems.clear(); renderRecentDrops();
+        loadRecentDrops(); renderRecentDrops();
         page.addView(dropCard,lp(-1,-2,0,14));
 
         LinearLayout pairing=card();
