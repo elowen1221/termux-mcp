@@ -24,6 +24,7 @@ import java.util.List;
 
 public final class WalnutAccessibilityService extends AccessibilityService {
     private static volatile WalnutAccessibilityService instance;
+    private BridgeHttpServer bridgeServer;
 
     public static WalnutAccessibilityService get(){ return instance; }
 
@@ -31,9 +32,12 @@ public final class WalnutAccessibilityService extends AccessibilityService {
         super.onServiceConnected();
         instance=this;
         BridgeState.mark(this,"accessibility connected",null);
+        try{ bridgeServer=new BridgeHttpServer(this); bridgeServer.start(); }
+        catch(Throwable error){ BridgeState.mark(this,"startup failed",error.getClass().getSimpleName()+": "+String.valueOf(error.getMessage())); }
     }
 
     @Override public void onDestroy(){
+        if(bridgeServer!=null){ bridgeServer.stop(); bridgeServer=null; }
         if(instance==this) instance=null;
         super.onDestroy();
     }

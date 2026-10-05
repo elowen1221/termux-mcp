@@ -94,9 +94,6 @@ public final class MainActivity extends Activity {
 
         TextView footer=text("◌  one small bridge, quietly awake",12,MUTED); footer.setGravity(Gravity.CENTER); page.addView(footer,lp(-1,-2,0,0));
         scroll.addView(page); setContentView(scroll); refreshStatus();
-        // Keep the local callback endpoint alive independently of Accessibility.
-        // BridgeHttpServer itself still gates UI-control endpoints on the accessibility instance.
-        try{ startService(new Intent(this, BridgeService.class)); }catch(Throwable ignored){}
     }
 
     private void pickImages(int requestCode){
@@ -138,6 +135,14 @@ public final class MainActivity extends Activity {
         recentItems.clear(); try{JSONArray a=new JSONArray(getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("recent","[]"));for(int i=0;i<a.length();i++){JSONObject j=a.getJSONObject(i);recentItems.add(new DropItem(j.optString("name","picture"),j.optString("bucket","stickers"),Uri.parse(j.optString("uri")),j.optString("key",j.optString("name","picture"))));}}catch(Exception ignored){}
     }
     private String readyName(String key){ return getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("ready_"+key,null); }
+    private void syncDropReceipts(){
+        Uri collection=MediaStore.Files.getContentUri("external");
+        String rel=Environment.DIRECTORY_DOCUMENTS+"/WalnutDrop/";
+        try(Cursor c=getContentResolver().query(collection,new String[]{MediaStore.MediaColumns._ID},MediaStore.MediaColumns.RELATIVE_PATH+"=? AND "+MediaStore.MediaColumns.DISPLAY_NAME+"=?",new String[]{rel,"receipts.json"},MediaStore.MediaColumns.DATE_MODIFIED+" DESC")){
+            if(c==null||!c.moveToFirst())return; Uri u=Uri.withAppendedPath(collection,String.valueOf(c.getLong(0)));
+            try(InputStream in=getContentResolver().openInputStream(u)){if(in==null)return; byte[] raw=new byte[65536]; int n=in.read(raw); if(n<=0)return; JSONObject root=new JSONObject(new String(raw,0,n,java.nio.charset.StandardCharsets.UTF_8)); JSONObject ready=root.optJSONObject("ready"); if(ready==null)return; android.content.SharedPreferences.Editor e=getSharedPreferences("walnut_drop",MODE_PRIVATE).edit(); java.util.Iterator<String> keys=ready.keys(); while(keys.hasNext()){String k=keys.next(); e.putString("ready_"+k,ready.optString(k,"已收录"));} e.apply();}
+        }catch(Throwable ignored){}
+    }
     static void markDropReady(Context context,String key,String name){ if(key==null||key.isEmpty())return; context.getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("ready_"+key,name==null||name.isEmpty()?"已收录":name).apply(); }
     private String displayName(Uri uri){
         String name="picture"; Cursor c=getContentResolver().query(uri,null,null,null,null); if(c!=null){try{if(c.moveToFirst()){int n=c.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(n>=0&&c.getString(n)!=null)name=c.getString(n);}}finally{c.close();}} return name;
@@ -156,7 +161,7 @@ public final class MainActivity extends Activity {
         }catch(Exception e){return null;}
     }
 
-    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();Updater.resumePendingInstall(this);}
+    @Override protected void onResume(){super.onResume();syncDropReceipts();if(recentDrops!=null)renderRecentDrops();if(bridgeState!=null)refreshStatus();Updater.resumePendingInstall(this);}
     private void refreshStatus(){String s=BridgeState.status(this);boolean ready="ready".equalsIgnoreCase(s)||WalnutAccessibilityService.get()!=null;bridgeState.setText(ready?"●  Connected":"○  Waiting for access");bridgeState.setTextColor(ready?LEAF:INK);}
     private String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){return "?";}}
     private String maskedToken(){String t=BridgeToken.getOrCreate(this);return "•••• •••• ••••  ·  "+(t.length()>4?t.substring(t.length()-4):"••••");}
