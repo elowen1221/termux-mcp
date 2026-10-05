@@ -136,14 +136,12 @@ public final class MainActivity extends Activity {
     }
     private String readyName(String key){ return getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("ready_"+key,null); }
     private void syncDropReceipts(){
-        Uri collection=MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
         android.content.SharedPreferences.Editor e=getSharedPreferences("walnut_drop",MODE_PRIVATE).edit();
         for(DropItem item:recentItems){
             if(readyName(item.key)!=null)continue;
-            String prefix="walnut_ready_"+item.key+"_";
-            try(Cursor c=getContentResolver().query(collection,new String[]{MediaStore.MediaColumns.DISPLAY_NAME},MediaStore.MediaColumns.DISPLAY_NAME+" LIKE ?",new String[]{prefix+"%"},MediaStore.MediaColumns.DATE_MODIFIED+" DESC")){
-                if(c!=null&&c.moveToFirst()){String file=c.getString(0);String formal=file.substring(prefix.length());int dot=formal.lastIndexOf('.');if(dot>0)formal=formal.substring(0,dot);formal=formal.replace('_',' ');e.putString("ready_"+item.key,formal.isEmpty()?"已收录":formal);}
-            }catch(Throwable ignored){}
+            boolean exists=true;
+            try(InputStream in=getContentResolver().openInputStream(item.uri)){exists=in!=null;}catch(Throwable ignored){exists=false;}
+            if(!exists)e.putString("ready_"+item.key,"已收录");
         }
         e.apply();
     }
