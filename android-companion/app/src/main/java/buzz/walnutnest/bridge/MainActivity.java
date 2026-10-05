@@ -9,6 +9,11 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.net.Uri;
+import android.provider.OpenableColumns;
+import android.database.Cursor;
+import java.io.InputStream;
+import java.io.OutputStream;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
@@ -18,8 +23,12 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
+import android.content.ContentValues;
+import android.provider.MediaStore;
+import android.os.Environment;
 
 public final class MainActivity extends Activity {
+    private static final int PICK_STICKERS=4101, PICK_DROP=4102;
     private static final int INK=Color.rgb(41,40,36), MUTED=Color.rgb(119,115,107), LEAF=Color.rgb(102,116,94);
     private TextView bridgeState;
 
@@ -53,6 +62,14 @@ public final class MainActivity extends Activity {
         }); updateCard.addView(update,lp(-1,dp(48),14,0));
         page.addView(updateCard,lp(-1,-2,0,14));
 
+        LinearLayout dropCard=card();
+        TextView dropLabel=text("DROP TO WALNUT",11,MUTED); dropLabel.setLetterSpacing(.12f); dropCard.addView(dropLabel);
+        TextView dropTitle=text("Send pictures to Termux",19,INK); dropTitle.setTypeface(Typeface.DEFAULT,Typeface.BOLD); dropCard.addView(dropTitle,lp(-1,-2,0,5));
+        TextView dropHint=text("Sticker inbox keeps new reactions separate until they are reviewed and tagged.",13,MUTED); dropCard.addView(dropHint);
+        Button stickers=button("Add stickers",true); stickers.setOnClickListener(v->pickImages(PICK_STICKERS)); dropCard.addView(stickers,lp(-1,dp(48),14,0));
+        Button pictures=button("Drop pictures",false); pictures.setOnClickListener(v->pickImages(PICK_DROP)); dropCard.addView(pictures,lp(-1,dp(46),8,0));
+        page.addView(dropCard,lp(-1,-2,0,14));
+
         LinearLayout pairing=card();
         TextView pairLabel=text("PAIRING",11,MUTED); pairLabel.setLetterSpacing(.12f); pairing.addView(pairLabel);
         TextView pairTitle=text("Private handshake",19,INK); pairTitle.setTypeface(Typeface.DEFAULT,Typeface.BOLD); pairing.addView(pairTitle,lp(-1,-2,0,5));
@@ -65,6 +82,31 @@ public final class MainActivity extends Activity {
 
         TextView footer=text("◌  one small bridge, quietly awake",12,MUTED); footer.setGravity(Gravity.CENTER); page.addView(footer,lp(-1,-2,0,0));
         scroll.addView(page); setContentView(scroll); refreshStatus();
+    }
+
+    private void pickImages(int requestCode){
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i,requestCode);
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(resultCode!=RESULT_OK||data==null||(requestCode!=PICK_STICKERS&&requestCode!=PICK_DROP))return;
+        java.util.ArrayList<Uri> uris=new java.util.ArrayList<>();
+        if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());} else if(data.getData()!=null)uris.add(data.getData());
+        int ok=0; for(Uri uri:uris) if(exportDrop(uri,requestCode==PICK_STICKERS?"stickers":"pictures"))ok++;
+        Toast.makeText(this,"Dropped "+ok+" / "+uris.size()+" picture(s) · WalnutDrop",Toast.LENGTH_LONG).show();
+    }
+    private boolean exportDrop(Uri uri,String bucket){
+        try{
+            String name="image"; Cursor c=getContentResolver().query(uri,null,null,null,null); if(c!=null){try{if(c.moveToFirst()){int n=c.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(n>=0)name=c.getString(n);}}finally{c.close();}}
+            name=name.replaceAll("[^A-Za-z0-9._-]","_");
+            ContentValues values=new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME,System.currentTimeMillis()+"_"+name);
+            String mime=getContentResolver().getType(uri); values.put(MediaStore.MediaColumns.MIME_TYPE,mime==null?"image/jpeg":mime);
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/WalnutDrop/"+bucket);
+            Uri dest=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values); if(dest==null)return false;
+            boolean copied=false; try(InputStream in=getContentResolver().openInputStream(uri);OutputStream os=getContentResolver().openOutputStream(dest)){if(in==null||os==null)return false;byte[] buf=new byte[65536];int n;while((n=in.read(buf))>0)os.write(buf,0,n);copied=true;} finally {if(!copied)getContentResolver().delete(dest,null,null);}
+            return copied;
+        }catch(Exception e){return false;}
     }
 
     @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();Updater.resumePendingInstall(this);}
