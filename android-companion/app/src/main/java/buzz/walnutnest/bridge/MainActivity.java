@@ -79,7 +79,8 @@ public final class MainActivity extends Activity {
         TextView recentLabel=text("RECENTLY DROPPED",11,MUTED); recentLabel.setLetterSpacing(.10f); dropCard.addView(recentLabel,lp(-1,-2,18,0));
         recentSummary=text("Nothing dropped from this screen yet.",13,MUTED); dropCard.addView(recentSummary,lp(-1,-2,5,0));
         recentDrops=new LinearLayout(this); recentDrops.setOrientation(LinearLayout.VERTICAL); dropCard.addView(recentDrops,lp(-1,-2,4,0));
-        loadRecentDrops(); renderRecentDrops();
+        getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().remove("recent").apply();
+        recentItems.clear(); renderRecentDrops();
         page.addView(dropCard,lp(-1,-2,0,14));
 
         LinearLayout pairing=card();
@@ -121,7 +122,7 @@ public final class MainActivity extends Activity {
         if(recentItems.isEmpty()){recentSummary.setText("Nothing dropped from this screen yet.");return;}
         for(DropItem item:recentItems){
             LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
-            ImageView thumb=new ImageView(this); thumb.setScaleType(ImageView.ScaleType.CENTER_CROP); try{thumb.setImageURI(item.uri);}catch(Throwable ignored){thumb.setImageDrawable(null);} row.addView(thumb,new LinearLayout.LayoutParams(dp(54),dp(54)));
+            ImageView thumb=new ImageView(this); thumb.setScaleType(ImageView.ScaleType.CENTER_CROP); thumb.setImageDrawable(null); row.addView(thumb,new LinearLayout.LayoutParams(dp(54),dp(54)));
             LinearLayout words=new LinearLayout(this); words.setOrientation(LinearLayout.VERTICAL);
             TextView label=text(item.name,13,INK); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); words.addView(label);
             String ready=readyName(item.key); TextView state=text(ready==null?"✓ 已投递 · 等待桉桉整理":"✓ 已收录 · "+ready,12,ready==null?MUTED:LEAF); words.addView(state,lp(-1,-2,3,0));
