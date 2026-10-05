@@ -8,8 +8,8 @@ android {
         applicationId = "buzz.walnutnest.bridge"
         minSdk = 30
         targetSdk = 36
-        versionCode = 22
-        versionName = "0.5.1"
+        versionCode = 23
+        versionName = "0.5.2"
     }
 
     val signingStore = System.getenv("ANDROID_SIGNING_STORE_FILE")

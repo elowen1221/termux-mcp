@@ -42,7 +42,6 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        try{startService(new Intent(this,BridgeService.class));}catch(Exception ignored){}
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(Color.rgb(247,245,239));
         LinearLayout page=new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(dp(24),dp(30),dp(24),dp(36));
 
