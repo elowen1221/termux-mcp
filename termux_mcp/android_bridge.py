@@ -79,6 +79,10 @@ def _accessibility(path: str, payload: dict | None = None, timeout: float = 3.0)
     except (OSError, urllib.error.URLError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
+def mark_drop_ready(key: str, name: str = "已收录") -> dict:
+    data = _accessibility("/v1/drop/ready", {"key": key, "name": name})
+    return data or {"ok": False, "error": "accessibility companion unavailable"}
+
 def current_context(package: str = "") -> dict:
     data = _accessibility("/v1/context", {"package": package})
     return data or {"ok": False, "error": "accessibility companion unavailable"}

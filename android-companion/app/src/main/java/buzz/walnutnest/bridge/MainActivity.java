@@ -22,15 +22,22 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ImageView;
 import java.io.File;
 import android.content.ContentValues;
 import android.provider.MediaStore;
 import android.os.Environment;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private static final int PICK_STICKERS=4101, PICK_DROP=4102;
     private static final int INK=Color.rgb(41,40,36), MUTED=Color.rgb(119,115,107), LEAF=Color.rgb(102,116,94);
     private TextView bridgeState;
+    private LinearLayout recentDrops;
+    private TextView recentSummary;
+    private final java.util.ArrayList<DropItem> recentItems=new java.util.ArrayList<>();
+    private static final class DropItem { String name,bucket,key; Uri uri; DropItem(String n,String b,Uri u,String k){name=n;bucket=b;uri=u;key=k;} }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -68,6 +75,10 @@ public final class MainActivity extends Activity {
         TextView dropHint=text("Sticker inbox keeps new reactions separate until they are reviewed and tagged.",13,MUTED); dropCard.addView(dropHint);
         Button stickers=button("Add stickers",true); stickers.setOnClickListener(v->pickImages(PICK_STICKERS)); dropCard.addView(stickers,lp(-1,dp(48),14,0));
         Button pictures=button("Drop pictures",false); pictures.setOnClickListener(v->pickImages(PICK_DROP)); dropCard.addView(pictures,lp(-1,dp(46),8,0));
+        TextView recentLabel=text("RECENTLY DROPPED",11,MUTED); recentLabel.setLetterSpacing(.10f); dropCard.addView(recentLabel,lp(-1,-2,18,0));
+        recentSummary=text("Nothing dropped from this screen yet.",13,MUTED); dropCard.addView(recentSummary,lp(-1,-2,5,0));
+        recentDrops=new LinearLayout(this); recentDrops.setOrientation(LinearLayout.VERTICAL); dropCard.addView(recentDrops,lp(-1,-2,4,0));
+        loadRecentDrops(); renderRecentDrops();
         page.addView(dropCard,lp(-1,-2,0,14));
 
         LinearLayout pairing=card();
@@ -92,8 +103,41 @@ public final class MainActivity extends Activity {
         if(resultCode!=RESULT_OK||data==null||(requestCode!=PICK_STICKERS&&requestCode!=PICK_DROP))return;
         java.util.ArrayList<Uri> uris=new java.util.ArrayList<>();
         if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());} else if(data.getData()!=null)uris.add(data.getData());
-        int ok=0; for(Uri uri:uris) if(exportDrop(uri,requestCode==PICK_STICKERS?"stickers":"pictures"))ok++;
+        String bucket=requestCode==PICK_STICKERS?"stickers":"pictures"; int ok=0; java.util.ArrayList<Uri> done=new java.util.ArrayList<>();
+        for(Uri uri:uris) if(exportDrop(uri,bucket)){ok++;done.add(uri);}
+        rememberRecentDrops(done,bucket); showRecentDrops(done,ok,uris.size(),bucket);
         Toast.makeText(this,"Dropped "+ok+" / "+uris.size()+" picture(s) · WalnutDrop",Toast.LENGTH_LONG).show();
+    }
+    private void showRecentDrops(java.util.ArrayList<Uri> uris,int ok,int total,String bucket){
+        recentSummary.setText(ok==total?("✓ "+ok+" picture"+(ok==1?"":"s")+" delivered · "+bucket):("⚠ "+ok+" / "+total+" delivered · "+bucket)); renderRecentDrops();
+    }
+    private void rememberRecentDrops(java.util.ArrayList<Uri> uris,String bucket){
+        for(Uri uri:uris){recentItems.add(0,new DropItem(displayName(uri),bucket,uri,dropKey(uri)));}
+        while(recentItems.size()>12)recentItems.remove(recentItems.size()-1); saveRecentDrops();
+    }
+    private void renderRecentDrops(){
+        if(recentDrops==null)return; recentDrops.removeAllViews();
+        if(recentItems.isEmpty()){recentSummary.setText("Nothing dropped from this screen yet.");return;}
+        for(DropItem item:recentItems){
+            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+            ImageView thumb=new ImageView(this); thumb.setScaleType(ImageView.ScaleType.CENTER_CROP); try{thumb.setImageURI(item.uri);}catch(Exception ignored){} row.addView(thumb,new LinearLayout.LayoutParams(dp(54),dp(54)));
+            LinearLayout words=new LinearLayout(this); words.setOrientation(LinearLayout.VERTICAL);
+            TextView label=text(item.name,13,INK); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE); words.addView(label);
+            String ready=readyName(item.key); TextView state=text(ready==null?"✓ 已投递 · 等待桉桉整理":"✓ 已收录 · "+ready,12,ready==null?MUTED:LEAF); words.addView(state,lp(-1,-2,3,0));
+            LinearLayout.LayoutParams q=new LinearLayout.LayoutParams(0,dp(54),1); q.leftMargin=dp(10); row.addView(words,q); recentDrops.addView(row,lp(-1,dp(58),4,0));
+        }
+    }
+    private void saveRecentDrops(){
+        JSONArray a=new JSONArray(); try{for(DropItem x:recentItems){JSONObject j=new JSONObject();j.put("name",x.name);j.put("bucket",x.bucket);j.put("uri",x.uri.toString());j.put("key",x.key);a.put(j);}getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("recent",a.toString()).apply();}catch(Exception ignored){}
+    }
+    private void loadRecentDrops(){
+        recentItems.clear(); try{JSONArray a=new JSONArray(getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("recent","[]"));for(int i=0;i<a.length();i++){JSONObject j=a.getJSONObject(i);recentItems.add(new DropItem(j.optString("name","picture"),j.optString("bucket","stickers"),Uri.parse(j.optString("uri")),j.optString("key",j.optString("name","picture"))));}}catch(Exception ignored){}
+    }
+    private String dropKey(Uri uri){ return displayName(uri); }
+    private String readyName(String key){ return getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("ready_"+key,null); }
+    static void markDropReady(Context context,String key,String name){ if(key==null||key.isEmpty())return; context.getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("ready_"+key,name==null||name.isEmpty()?"已收录":name).apply(); }
+    private String displayName(Uri uri){
+        String name="picture"; Cursor c=getContentResolver().query(uri,null,null,null,null); if(c!=null){try{if(c.moveToFirst()){int n=c.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(n>=0&&c.getString(n)!=null)name=c.getString(n);}}finally{c.close();}} return name;
     }
     private boolean exportDrop(Uri uri,String bucket){
         try{

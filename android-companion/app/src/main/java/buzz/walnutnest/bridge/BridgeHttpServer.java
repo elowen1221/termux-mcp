@@ -58,6 +58,10 @@ final class BridgeHttpServer {
                 if (path.equals("/v1/status")) {
                     JSONObject data = new JSONObject(); data.put("accessibility", service != null); data.put("version", context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName); data.put("port", PORT); data.put("server_build", context.getPackageManager().getPackageInfo(context.getPackageName(),0).getLongVersionCode()); data.put("server_started_at_ms", BridgeState.at(context)); data.put("server_state", BridgeState.status(context)); data.put("server_error", BridgeState.error(context));
                     respond(out, 200, envelope(true, null, data));
+                } else if (path.equals("/v1/drop/ready")) {
+                    String key=body.optString("key","").trim(), name=body.optString("name","已收录").trim();
+                    if(key.isEmpty()){respond(out,400,json(false,"key is required"));return;}
+                    MainActivity.markDropReady(context,key,name); JSONObject data=new JSONObject(); data.put("key",key); data.put("name",name); respond(out,200,envelope(true,null,data));
                 } else if (path.equals("/v1/apps")) {
                     respond(out, 200, envelope(true, null, new JSONArray(launcherApps())));
                 } else if (path.equals("/v1/open")) {
