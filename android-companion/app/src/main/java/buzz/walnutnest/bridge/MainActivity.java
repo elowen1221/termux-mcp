@@ -36,7 +36,6 @@ public final class MainActivity extends Activity {
     private TextView bridgeState;
     private LinearLayout recentDrops;
     private TextView recentSummary;
-    private TextView receiptDebug;
     private final java.util.ArrayList<DropItem> recentItems=new java.util.ArrayList<>();
     private static final class DropItem { String name,bucket,key; Uri uri; DropItem(String n,String b,Uri u,String k){name=n;bucket=b;uri=u;key=k;} }
     private static final class ExportedDrop { String name,key; Uri uri; ExportedDrop(String n,String k,Uri u){name=n;key=k;uri=u;} }
@@ -79,7 +78,6 @@ public final class MainActivity extends Activity {
         Button pictures=button("Drop pictures",false); pictures.setOnClickListener(v->pickImages(PICK_DROP)); dropCard.addView(pictures,lp(-1,dp(46),8,0));
         TextView recentLabel=text("RECENTLY DROPPED",11,MUTED); recentLabel.setLetterSpacing(.10f); dropCard.addView(recentLabel,lp(-1,-2,18,0));
         recentSummary=text("Nothing dropped from this screen yet.",13,MUTED); dropCard.addView(recentSummary,lp(-1,-2,5,0));
-        receiptDebug=text("receipt debug · not checked",11,MUTED); dropCard.addView(receiptDebug,lp(-1,-2,4,0));
         recentDrops=new LinearLayout(this); recentDrops.setOrientation(LinearLayout.VERTICAL); dropCard.addView(recentDrops,lp(-1,-2,4,0));
         loadRecentDrops(); renderRecentDrops();
         page.addView(dropCard,lp(-1,-2,0,14));
@@ -138,16 +136,16 @@ public final class MainActivity extends Activity {
     }
     private String readyName(String key){ return getSharedPreferences("walnut_drop",MODE_PRIVATE).getString("ready_"+key,null); }
     private void syncDropReceipts(){
-        Uri collection=MediaStore.Files.getContentUri("external"); int found=0, loaded=0; String note="";
-        try(Cursor c=getContentResolver().query(collection,new String[]{MediaStore.MediaColumns._ID,MediaStore.MediaColumns.RELATIVE_PATH},MediaStore.MediaColumns.DISPLAY_NAME+"=?",new String[]{"receipts.json"},MediaStore.MediaColumns.DATE_MODIFIED+" DESC")){
-            if(c!=null)while(c.moveToNext()){
-                found++; int pathCol=c.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH); String rel=pathCol>=0?c.getString(pathCol):"";
-                if(rel!=null && !rel.contains("WalnutDrop"))continue;
-                Uri u=Uri.withAppendedPath(collection,String.valueOf(c.getLong(0)));
-                try(InputStream in=getContentResolver().openInputStream(u)){if(in==null)continue;java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=in.read(buf))>0&&out.size()<65536)out.write(buf,0,n);JSONObject root=new JSONObject(out.toString("UTF-8"));JSONObject ready=root.optJSONObject("ready");if(ready==null)continue;android.content.SharedPreferences.Editor e=getSharedPreferences("walnut_drop",MODE_PRIVATE).edit();java.util.Iterator<String> keys=ready.keys();while(keys.hasNext()){String k=keys.next();e.putString("ready_"+k,ready.optString(k,"已收录"));loaded++;}e.apply();break;}catch(Throwable x){note=x.getClass().getSimpleName();}
-            }
-        }catch(Throwable x){note=x.getClass().getSimpleName();}
-        if(receiptDebug!=null){int matched=0;for(DropItem x:recentItems)if(readyName(x.key)!=null)matched++;receiptDebug.setText("receipt debug · files="+found+" · keys="+loaded+" · matched="+matched+(note.isEmpty()?"":" · "+note));}
+        Uri collection=MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+        android.content.SharedPreferences.Editor e=getSharedPreferences("walnut_drop",MODE_PRIVATE).edit();
+        for(DropItem item:recentItems){
+            if(readyName(item.key)!=null)continue;
+            String prefix="walnut_ready_"+item.key+"_";
+            try(Cursor c=getContentResolver().query(collection,new String[]{MediaStore.MediaColumns.DISPLAY_NAME},MediaStore.MediaColumns.DISPLAY_NAME+" LIKE ?",new String[]{prefix+"%"},MediaStore.MediaColumns.DATE_MODIFIED+" DESC")){
+                if(c!=null&&c.moveToFirst()){String file=c.getString(0);String formal=file.substring(prefix.length());int dot=formal.lastIndexOf('.');if(dot>0)formal=formal.substring(0,dot);formal=formal.replace('_',' ');e.putString("ready_"+item.key,formal.isEmpty()?"已收录":formal);}
+            }catch(Throwable ignored){}
+        }
+        e.apply();
     }
     static void markDropReady(Context context,String key,String name){ if(key==null||key.isEmpty())return; context.getSharedPreferences("walnut_drop",MODE_PRIVATE).edit().putString("ready_"+key,name==null||name.isEmpty()?"已收录":name).apply(); }
     private String displayName(Uri uri){
