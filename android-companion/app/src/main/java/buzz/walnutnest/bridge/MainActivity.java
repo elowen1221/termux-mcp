@@ -153,7 +153,7 @@ public final class MainActivity extends Activity {
         }catch(Exception e){return null;}
     }
 
-    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();loadRecentDrops();renderRecentDrops();Updater.resumePendingInstall(this);}
+    @Override protected void onResume(){super.onResume();if(bridgeState!=null)refreshStatus();Updater.resumePendingInstall(this);}
     private void refreshStatus(){String s=BridgeState.status(this);boolean ready="ready".equalsIgnoreCase(s)||WalnutAccessibilityService.get()!=null;bridgeState.setText(ready?"●  Connected":"○  Waiting for access");bridgeState.setTextColor(ready?LEAF:INK);}
     private String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){return "?";}}
     private String maskedToken(){String t=BridgeToken.getOrCreate(this);return "•••• •••• ••••  ·  "+(t.length()>4?t.substring(t.length()-4):"••••");}
