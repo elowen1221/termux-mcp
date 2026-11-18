@@ -115,6 +115,13 @@ final class BridgeHttpServer {
                     String pkg=body.optString("package",""); android.view.accessibility.AccessibilityNodeInfo root=service.rootForPackage(pkg);
                     if(root==null){respond(out,404,json(false,"package window unavailable"));return;}
                     int depth=Math.max(1,Math.min(NodeTree.MAX_DEPTH,body.optInt("max_depth",6))); respond(out,200,envelope(true,null,NodeTree.compact(root,0,depth)));
+                } else if (path.equals("/v1/text-nodes")) {
+                    if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
+                    String pkg=body.optString("package","");
+                    android.view.accessibility.AccessibilityNodeInfo root=service.rootForPackage(pkg);
+                    if(root==null){respond(out,404,json(false,"package window unavailable"));return;}
+                    // Return a compact bounded text candidate list; no raw full UI tree.
+                    respond(out,200,envelope(true,null,NodeTextScan.scan(root)));
                 } else if (path.equals("/v1/screenshot")) {
                     if(service==null){respond(out,409,json(false,"accessibility service unavailable"));return;}
                     JSONObject shot=service.screenshotPngBase64(); boolean ok=shot.optBoolean("success",false);
